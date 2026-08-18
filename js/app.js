@@ -15,7 +15,8 @@ class SmartBioApp {
   init() {
     // Initialize Subsystems
     window.smartBioTour.init();
-    window.smartBioCloud.initializeFirebase();
+    // Defer Firebase init slightly so all CDN SDK scripts are guaranteed parsed
+    setTimeout(() => window.smartBioCloud.initializeFirebase(), 500);
 
     this.bindNavbarEvents();
     this.bindAuthEvents();
@@ -391,12 +392,17 @@ class SmartBioApp {
     this.showToast(`Account successfully registered! Logged in as ${fullName} (${role}).`, 'success');
   }
 
-    this.currentUserId = newUserId;
-    this.switchRole(role, newUserId);
-    this.closeAuthModal();
-
-    window.smartBioAudio.playSuccessChime();
-    this.showToast(`Account successfully registered! Logged in as ${fullName}.`, 'success');
+  handleSignOut() {
+    // Sign out of Firebase Auth if connected
+    if (window.smartBioCloud && window.smartBioCloud.auth && window.smartBioCloud.isConnected) {
+      try { window.smartBioCloud.auth.signOut(); } catch (e) {}
+    }
+    window.smartBioAudio.playErrorBuzz();
+    this.currentUserId = null;
+    // Reset all role pills to visible for fresh login selection
+    document.querySelectorAll('.role-pill').forEach(p => p.style.display = '');
+    this.openAuthModal('LOGIN');
+    this.showToast('Signed out. Select a profile to continue.', 'info');
   }
 
   handleResetPassword(e) {
