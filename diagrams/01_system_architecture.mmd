@@ -5,31 +5,44 @@ graph TB
 %% Open in https://mermaid.live
 %% ============================================================================
 
+    subgraph Auth_Layer ["🔐 Identity & Access Control Layer (Firebase Authentication + RBAC)"]
+        AUTH1["Firebase Auth\n(Email/Password + WebAuthn FIDO2\nsignInWithEmailAndPassword)"]
+        AUTH2["Institutional Passcode Gatekeeping\n(GWU-FACULTY-2026 / GWU-PROCTOR-2026 / GWU-ADMIN-2026)"]
+        AUTH3["JWT Role Claims Resolver\n+ Navbar Route Guards\n(Student | Class Rep | Lecturer | Admin tabs)"]
+        AUTH4["🚪 Switch User / Sign-Out\n(Clears JWT Session → Re-opens Auth Screen)"]
+    end
+
     subgraph Client_Layer ["Client Presentation & Terminal Layer (GitHub Pages / SPA)"]
-        A1["👨‍💼 Administrator Portal<br>(User & Session Config, SQL Dump)"]
-        A2["👨‍🏫 Lecturer Portal<br>(Live Radar, Session Timer, Flag Resolver)"]
-        A3["👥 Class Representative Portal<br>(Kiosk Proctor, Live Headcount, Defaulter Alerts)"]
-        A4["🎓 Student Portal<br>(NUC 75% Gauges, Lecture Logs, Exam Docket)"]
-        A5["🖲️ Classroom Kiosk Scanner<br>(Optical Laser Simulator & Minutiae Detector)"]
+        A1["👨‍💼 Administrator Portal\n(User & Session Config, SQL Dump, ☁️ Cloud Seeder)"]
+        A2["👨‍🏫 Lecturer Portal\n(Live Radar, Session Timer, Flag Resolver)"]
+        A3["👥 Class Representative Portal\n(Kiosk Proctor, Live Headcount, Defaulter Alerts)"]
+        A4["🎓 Student Portal\n(NUC 75% Gauges, Lecture Logs, Exam Docket)"]
+        A5["🖲️ Classroom Kiosk Scanner\n(Optical Laser Simulator & Minutiae Detector)"]
     end
 
     subgraph Biometric_Layer ["Biometric Verification & Security Subsystem"]
-        B1["🔐 Browser Native WebAuthn API<br>(TouchID, Windows Hello, Android Biometrics)"]
-        B2["🔬 Optical Sensor Minutiae Engine<br>(SHA-256 Hash Matching, Quality Threshold &ge; 70%)"]
-        B3["⚠️ Flagged Exception Router<br>(Low Ridge, Sweaty Finger &rarr; Lecturer Queue)"]
+        B1["🔐 Browser Native WebAuthn API\n(TouchID, Windows Hello, Android Biometrics)"]
+        B2["🔬 Optical Sensor Minutiae Engine\n(SHA-256 Hash Matching, Quality Threshold ≥ 70%)"]
+        B3["⚠️ Flagged Exception Router\n(Low Ridge, Sweaty Finger → Lecturer Queue)"]
     end
 
     subgraph Sync_Storage_Layer ["Dual-Tier Data & Real-Time Sync Layer"]
-        C1["☁️ Firebase Cloud Firestore<br>(Real-time WebSockets onSnapshot Multi-Device Sync)"]
-        C2["💾 Browser Relational Data Engine<br>(IndexedDB / LocalStorage Repository + Offline Cache)"]
-        C3["🗄️ Standard Relational SQL Engine<br>(MySQL 8.0 / PostgreSQL 16 3NF Normalized Schema)"]
+        C1["☁️ Firebase Cloud Firestore\n(Real-time WebSockets onSnapshot Multi-Device Sync)\n/users · /attendance_records · /flagged_exceptions\n/lecture_sessions · /courses · /audit_logs"]
+        C2["💾 Browser Relational Data Engine\n(IndexedDB / LocalStorage Repository + Offline Cache)"]
+        C3["🗄️ Standard Relational SQL Engine\n(MySQL 8.0 / PostgreSQL 16 3NF Normalized Schema)"]
     end
 
     subgraph Regulatory_Compliance ["Regulatory & Security Enforcement Layer"]
-        D1["🏛️ NUC 75% Compliance Engine<br>(Automated Defaulter & Clearance Computation)"]
-        D2["🛡️ NDPA 2023 Security Audit Trail<br>(Cryptographic Hash & Immutable Override Logs)"]
-        D3["📜 Official Verification Engine<br>(Anti-Tamper QR Clearance Token Generation)"]
+        D1["🏛️ NUC 75% Compliance Engine\n(Automated Defaulter & Clearance Computation)"]
+        D2["🛡️ NDPA 2023 Security Audit Trail\n(Cryptographic Hash & Immutable Override Logs)"]
+        D3["📜 Official Verification Engine\n(Anti-Tamper QR Clearance Token Generation)"]
     end
+
+    %% Auth flow
+    AUTH2 --> AUTH1
+    AUTH1 --> AUTH3
+    AUTH3 --> A1 & A2 & A3 & A4 & A5
+    AUTH3 --> AUTH4
 
     %% Client to Biometrics
     A5 --> B2
