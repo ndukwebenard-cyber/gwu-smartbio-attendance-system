@@ -1,0 +1,130 @@
+erDiagram
+%% ============================================================================
+%% GLOBAL WEALTH UNIVERSITY — SMARTBIO ATTENDANCE SYSTEM
+%% 3NF Normalized Relational Entity-Relationship Diagram (ERD)
+%% Open in https://mermaid.live
+%% ============================================================================
+
+    DEPARTMENTS ||--o{ USERS : "employs / enrolls"
+    DEPARTMENTS ||--o{ COURSES : "offers"
+    
+    ACADEMIC_SESSIONS ||--|{ SEMESTERS : "contains"
+    ACADEMIC_SESSIONS ||--o{ COURSE_REGISTRATIONS : "registered_in"
+
+    ROLES ||--o{ USERS : "assigned_to"
+    
+    USERS ||--o{ BIOMETRIC_CREDENTIALS : "owns"
+    USERS ||--o{ COURSES : "lectures"
+    USERS ||--o{ COURSE_REGISTRATIONS : "registers"
+    USERS ||--o{ LECTURE_SESSIONS : "conducts"
+    USERS ||--o{ ATTENDANCE_RECORDS : "records_for"
+    USERS ||--o{ AUDIT_LOGS : "acts_as"
+
+    SEMESTERS ||--o{ COURSES : "schedules"
+    
+    COURSES ||--o{ COURSE_REGISTRATIONS : "has_enrolled"
+    COURSES ||--o{ LECTURE_SESSIONS : "conducted_for"
+
+    LECTURE_SESSIONS ||--o{ ATTENDANCE_RECORDS : "captures"
+
+    DEPARTMENTS {
+        int department_id PK
+        string department_code UK
+        string department_name
+        string faculty
+    }
+
+    ACADEMIC_SESSIONS {
+        int session_id PK
+        string session_name UK
+        boolean is_current
+        date start_date
+        date end_date
+    }
+
+    SEMESTERS {
+        int semester_id PK
+        int session_id FK
+        string semester_type
+        boolean is_active
+    }
+
+    ROLES {
+        int role_id PK
+        string role_name UK
+        string description
+    }
+
+    USERS {
+        int user_id PK
+        string identifier UK "Matric No or Staff ID"
+        string full_name
+        string email UK
+        string password_hash
+        int role_id FK
+        int department_id FK
+        int academic_level "100 - 500L"
+        boolean is_active
+    }
+
+    BIOMETRIC_CREDENTIALS {
+        int credential_id PK
+        int user_id FK
+        string credential_type "WEBAUTHN or OPTICAL"
+        string biometric_template_hash "SHA256"
+        string finger_position
+        timestamp registered_at
+    }
+
+    COURSES {
+        int course_id PK
+        string course_code UK "e.g. CSC 401"
+        string course_title
+        int credit_units
+        int department_id FK
+        int level
+        int semester_id FK
+        int lecturer_id FK
+        decimal minimum_attendance_pct "75.00"
+    }
+
+    COURSE_REGISTRATIONS {
+        int registration_id PK
+        int student_id FK
+        int course_id FK
+        int session_id FK
+        timestamp registration_date
+        boolean is_approved
+    }
+
+    LECTURE_SESSIONS {
+        int session_instance_id PK
+        int course_id FK
+        int lecturer_id FK
+        string topic
+        string venue_hall
+        timestamp start_time
+        timestamp end_time
+        string status "ACTIVE or CONCLUDED"
+    }
+
+    ATTENDANCE_RECORDS {
+        int attendance_id PK
+        int session_instance_id FK
+        int student_id FK
+        timestamp verification_time
+        string verification_method
+        decimal match_confidence_score
+        string status "PRESENT or FLAGGED"
+        string flag_reason
+        int resolved_by_lecturer_id FK
+    }
+
+    AUDIT_LOGS {
+        int log_id PK
+        int actor_user_id FK
+        string action_type
+        string target_entity
+        string action_details
+        timestamp timestamp
+    }

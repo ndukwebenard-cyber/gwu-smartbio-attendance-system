@@ -1,0 +1,50 @@
+graph TB
+%% ============================================================================
+%% GLOBAL WEALTH UNIVERSITY — SMARTBIO SYSTEM ARCHITECTURE
+%% High-Level Multi-Tier Client-Cloud & Relational Database Architecture
+%% Open in https://mermaid.live
+%% ============================================================================
+
+    subgraph Client_Layer ["Client Presentation & Terminal Layer (GitHub Pages / SPA)"]
+        A1["👨‍💼 Administrator Portal<br>(User & Session Config, SQL Dump)"]
+        A2["👨‍🏫 Lecturer Portal<br>(Live Radar, Session Timer, Flag Resolver)"]
+        A3["👥 Class Representative Portal<br>(Kiosk Proctor, Live Headcount, Defaulter Alerts)"]
+        A4["🎓 Student Portal<br>(NUC 75% Gauges, Lecture Logs, Exam Docket)"]
+        A5["🖲️ Classroom Kiosk Scanner<br>(Optical Laser Simulator & Minutiae Detector)"]
+    end
+
+    subgraph Biometric_Layer ["Biometric Verification & Security Subsystem"]
+        B1["🔐 Browser Native WebAuthn API<br>(TouchID, Windows Hello, Android Biometrics)"]
+        B2["🔬 Optical Sensor Minutiae Engine<br>(SHA-256 Hash Matching, Quality Threshold &ge; 70%)"]
+        B3["⚠️ Flagged Exception Router<br>(Low Ridge, Sweaty Finger &rarr; Lecturer Queue)"]
+    end
+
+    subgraph Sync_Storage_Layer ["Dual-Tier Data & Real-Time Sync Layer"]
+        C1["☁️ Firebase Cloud Firestore<br>(Real-time WebSockets onSnapshot Multi-Device Sync)"]
+        C2["💾 Browser Relational Data Engine<br>(IndexedDB / LocalStorage Repository + Offline Cache)"]
+        C3["🗄️ Standard Relational SQL Engine<br>(MySQL 8.0 / PostgreSQL 16 3NF Normalized Schema)"]
+    end
+
+    subgraph Regulatory_Compliance ["Regulatory & Security Enforcement Layer"]
+        D1["🏛️ NUC 75% Compliance Engine<br>(Automated Defaulter & Clearance Computation)"]
+        D2["🛡️ NDPA 2023 Security Audit Trail<br>(Cryptographic Hash & Immutable Override Logs)"]
+        D3["📜 Official Verification Engine<br>(Anti-Tamper QR Clearance Token Generation)"]
+    end
+
+    %% Client to Biometrics
+    A5 --> B2
+    A4 --> B1
+    A2 --> B3
+
+    %% Biometrics to Storage
+    B1 --> C1
+    B2 --> C1
+    B3 --> C1
+    C1 <--> C2
+    C2 -.->|Export DDL/Dump| C3
+
+    %% Storage to Compliance
+    C1 --> D1
+    C1 --> D2
+    D1 --> D3
+    D3 --> A4

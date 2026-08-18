@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Wealth University — SmartBio Attendance & NUC Compliance System</title>
+  <meta name="description" content="Global Wealth University web-based biometric attendance system with NUC 75% compliance tracking, multi-role portals, WebAuthn, optical scanner simulation, and exception flagging.">
+  
+  <!-- Favicon / Brand Icon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/onboarding.css">
+  <link rel="stylesheet" href="css/dashboards.css">
+  <link rel="stylesheet" href="css/scanner.css">
+</head>
+<body>
+
+  <!-- =========================================================================
+       1. TOP NAVIGATION BAR
+       ========================================================================= -->
+  <header class="top-navbar">
+    <div class="brand-container" onclick="window.smartBioTour.openTour(1)">
+      <div class="brand-icon">⚡</div>
+      <div class="brand-text">
+        <h1>Global Wealth University</h1>
+        <span>SmartBio Attendance & NUC Compliance</span>
+      </div>
+    </div>
+
+    <!-- Role Switcher Pills -->
+    <nav class="role-pills" aria-label="Portal Selection">
+      <button class="role-pill" data-role="ADMIN" id="pillAdmin">
+        <span>👨‍💼</span> Administrator
+      </button>
+      <button class="role-pill active" data-role="LECTURER" id="pillLecturer">
+        <span>👨‍🏫</span> Lecturer
+      </button>
+      <button class="role-pill" data-role="CLASS_REP" id="pillClassRep">
+        <span>👥</span> Class Rep
+      </button>
+      <button class="role-pill" data-role="STUDENT" id="pillStudent">
+        <span>🎓</span> Student
+      </button>
+      <button class="role-pill" data-role="SCANNER" id="pillScanner">
+        <span>🖲️</span> Kiosk Scanner
+      </button>
+    </nav>
+
+    <!-- Cloud Sync & Tour Actions -->
+    <div class="nav-actions">
+      <button class="btn-sync" id="btnCloudSyncSettings" title="Cloud Firestore Multi-Device Sync">
+        <span class="sync-dot offline" id="cloudSyncDot"></span>
+        <span id="cloudStatusText">Local Database Mode</span>
+      </button>
+      <button class="btn btn-secondary btn-sm" id="btnRestartTour" title="Open Interactive Tour">
+        <span>💡</span> Tour
+      </button>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       2. MAIN APP CONTAINER
+       ========================================================================= -->
+  <main class="app-container">
+
+    <!-- -----------------------------------------------------------------------
+         VIEW A: LECTURER PORTAL (Live Session & Flagged Exceptions)
+         ----------------------------------------------------------------------- -->
+    <section class="portal-view active" id="lecturerPortalView">
+      <div class="view-header">
+        <div class="view-title-group">
+          <h2>Lecturer Dashboard & Live Session Radar</h2>
+          <p>Welcome back, <strong id="lecturerWelcomeName" class="text-primary">Dr. Olawale Adeyemi</strong> • Dept of Computer Science & Software Engineering</p>
+        </div>
+      </div>
+
+      <!-- Live Session Banner (When Class is Active) -->
+      <div class="live-session-banner hidden" id="liveSessionActiveBanner">
+        <div class="radar-pulse-ring">
+          <div class="radar-dot"></div>
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 800;" id="activeSessionTitle">Advanced Software Architecture & WebAuthn</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">
+              Venue: <strong id="activeSessionVenue">ICT Hall A</strong> • Course: <strong>CSC 401</strong> • Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span>
+            </p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="font-family: var(--font-mono); font-size: 1.2rem; font-weight: 800;" id="activeSessionTimer">00:00</div>
+          <button class="btn btn-danger btn-sm" id="btnEndLectureSession">End Session</button>
+        </div>
+      </div>
+
+      <!-- Start Lecture Session Form Box -->
+      <div class="glass-card" id="lectureSessionConfigBox" style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 14px; font-size: 1.05rem;">🚀 Initiate New Lecture Session</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: flex-end;">
+          <div>
+            <label class="form-label">Course Code</label>
+            <select class="form-control" id="lectureCourseSelect">
+              <option value="1">CSC 401 — Advanced Software Engineering</option>
+              <option value="2">CSC 405 — Biometrics &amp; Cyber-Physical Systems</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Lecture Topic</label>
+            <input type="text" class="form-control" id="lectureTopicInput" value="Biometric Minutiae &amp; Cryptographic Hashes" placeholder="e.g. Design Patterns">
+          </div>
+          <div>
+            <label class="form-label">Lecture Hall / Venue</label>
+            <input type="text" class="form-control" id="lectureVenueInput" value="ICT Hall A" placeholder="e.g. Lab 2">
+          </div>
+          <button class="btn btn-primary" id="btnStartLectureSession" style="width: 100%;">
+            Start Session
+          </button>
+        </div>
+      </div>
+
+      <!-- Split Grid: Live Attendance Stream & Flagged Queue -->
+      <div class="dashboard-split-grid">
+        <!-- Live Incoming Radar Table -->
+        <div class="glass-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="font-size: 1.1rem; font-weight: 700;">📡 Real-Time Attendance Stream</h3>
+            <span class="badge badge-eligible">Live WebSocket Feed</span>
+          </div>
+          <div class="table-responsive" style="max-height: 380px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Matric No</th>
+                  <th>Student Name</th>
+                  <th>Status</th>
+                  <th>Confidence</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="liveRadarTableBody">
+                <tr>
+                  <td><strong class="font-mono">GWU/CSC/22/001</strong></td>
+                  <td>Benedict Uchechukwu</td>
+                  <td><span class="badge badge-eligible">PRESENT</span></td>
+                  <td>98.4%</td>
+                  <td>09:05 AM</td>
+                </tr>
+                <tr>
+                  <td><strong class="font-mono">GWU/CSC/22/014</strong></td>
+                  <td>Folake Adebayo</td>
+                  <td><span class="badge badge-eligible">PRESENT</span></td>
+                  <td>99.2%</td>
+                  <td>09:02 AM</td>
+                </tr>
+                <tr>
+                  <td><strong class="font-mono">GWU/CSC/22/028</strong></td>
+                  <td>Chukwudi Eze</td>
+                  <td><span class="badge badge-eligible">PRESENT</span></td>
+                  <td>97.8%</td>
+                  <td>09:07 AM</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Flagged Exceptions Queue (Literature Gap Feature) -->
+        <div class="glass-card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="font-size: 1.1rem; font-weight: 700;">⚠️ Flagged Exception Queue</h3>
+            <span class="badge badge-flagged" id="flaggedCountBadge">1 Pending</span>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+            Students with unreadable fingerprint ridges, sweaty scans, or injuries routed for physical verification.
+          </p>
+          <div class="flagged-queue" id="flaggedQueueContainer">
+            <!-- Dynamic Flagged Cards inserted via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- NUC 75% Compliance & Defaulter Summary -->
+      <div class="glass-card" style="margin-top: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 800;">📊 NUC 75% Defaulter & Examination Eligibility Sheet (CSC 401)</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted);">Real-time calculation based on 10 conducted lectures.</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="window.print()">
+            🖨️ Export PDF / Print Roster
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Matriculation No</th>
+                <th>Student Full Name</th>
+                <th>Sessions Attended</th>
+                <th>Percentage</th>
+                <th>NUC Status</th>
+                <th>Action Required</th>
+              </tr>
+            </thead>
+            <tbody id="defaultersTableBody">
+              <!-- Rendered via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- -----------------------------------------------------------------------
+         VIEW B: CLASS REPRESENTATIVE PORTAL (Proctor Tools & Headcount Radar)
+         ----------------------------------------------------------------------- -->
+    <section class="portal-view" id="classRepPortalView">
+      <div class="view-header">
+        <div class="view-title-group">
+          <h2>Class Representative & Session Proctoring Portal</h2>
+          <p>Logged in as: <strong id="classRepWelcomeName" class="text-primary">Chukwudi Eze (Class Rep)</strong> • Computer Science 400L</p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-primary" id="btnRepLaunchKiosk">
+            🚀 Launch Hall Scanner Kiosk
+          </button>
+          <button class="btn btn-warning" id="btnRepBroadcastAlert">
+            📢 Broadcast 75% Defaulter Alert
+          </button>
+          <button class="btn btn-secondary" id="btnRepOpenDocketModal">
+            📜 My Exam Clearance Docket
+          </button>
+        </div>
+      </div>
+
+      <!-- Proctor Live Headcount Card -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-primary">👥</div>
+          <div class="stat-content">
+            <h4>Total Course Enrolled</h4>
+            <div class="stat-value" id="repStatEnrolled">5</div>
+            <div class="stat-meta">CSC 401 Roster</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-success">📡</div>
+          <div class="stat-content">
+            <h4>Present in Hall</h4>
+            <div class="stat-value" id="repStatPresent">4</div>
+            <div class="stat-meta">Verified via Biometrics</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-warning">⚠️</div>
+          <div class="stat-content">
+            <h4>At-Risk Coursemates</h4>
+            <div class="stat-value" id="repStatAtRisk">1</div>
+            <div class="stat-meta">Attendance &lt; 75%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security Separation of Duties Notice -->
+      <div class="glass-card" style="margin-bottom: 24px; border-left: 4px solid var(--warning);">
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <div style="font-size: 24px;">🛡️</div>
+          <div>
+            <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 2px;">Separation of Duties & Least Privilege Policy</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">
+              As Class Representative, you have proctoring privileges to launch the classroom terminal and monitor hall headcount. 
+              <strong>You cannot manually edit attendance or approve unreadable biometric flags</strong>—all exception overrides require physical verification by the Lecturer or HOD.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Defaulter Warning Summary for Rep Broadcast -->
+      <div class="glass-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 700;">📢 Course NUC 75% Deficit Monitor (CSC 401)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Notify coursemates who need to attend upcoming lectures to avoid being barred from exams.</p>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Matric No</th>
+                <th>Student Full Name</th>
+                <th>Attended / Conducted</th>
+                <th>Attendance %</th>
+                <th>Status</th>
+                <th>Deficit Advisory</th>
+              </tr>
+            </thead>
+            <tbody id="repDefaultersTableBody">
+              <!-- Rendered via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- -----------------------------------------------------------------------
+         VIEW C: STUDENT PORTAL (Gauges, Lecture History & Clearance Docket)
+         ----------------------------------------------------------------------- -->
+    <section class="portal-view" id="studentPortalView">
+      <div class="view-header">
+        <div class="view-title-group">
+          <h2>Student Attendance & NUC Clearance Portal</h2>
+          <p>Logged in as: <strong id="studentWelcomeName" class="text-primary">Benedict Uchechukwu</strong> • Matric: <span class="badge badge-eligible font-mono" id="studentMatricBadge">GWU/CSC/22/001</span></p>
+        </div>
+        <button class="btn btn-primary" id="btnOpenDocketModal">
+          📜 Generate Exam Clearance Docket
+        </button>
+      </div>
+
+      <!-- Real-Time Course Compliance Gauges -->
+      <h3 style="margin-bottom: 16px; font-size: 1.15rem;">Registered Courses Attendance Rates</h3>
+      <div class="course-gauge-grid" id="studentCourseGaugeGrid">
+        <!-- Rendered via compliance.js -->
+      </div>
+
+      <!-- Lecture History Breakdown -->
+      <div class="glass-card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">🗓️ Detailed Session Attendance History (CSC 401)</h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Session #</th>
+                <th>Topic Delivered</th>
+                <th>Venue</th>
+                <th>Date & Time</th>
+                <th>Status</th>
+                <th>Verification Method</th>
+              </tr>
+            </thead>
+            <tbody id="studentLectureLogTableBody">
+              <!-- Rendered via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- -----------------------------------------------------------------------
+         VIEW C: ADMINISTRATOR PORTAL
+         ----------------------------------------------------------------------- -->
+    <section class="portal-view" id="adminPortalView">
+      <div class="view-header">
+        <div class="view-title-group">
+          <h2>System Administration & NDPA 2023 Audit Console</h2>
+          <p>Institutional Overview: Global Wealth University • Academic Session 2025/2026</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary btn-sm" id="btnAdminExportSQL">
+            💾 Export SQL Dump
+          </button>
+          <button class="btn btn-danger btn-sm" id="btnAdminResetDB">
+            🔄 Reset to Seeds
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-primary">🎓</div>
+          <div class="stat-content">
+            <h4>Enrolled Students</h4>
+            <div class="stat-value" id="adminStatTotalStudents">5</div>
+            <div class="stat-meta">Computer Science 400L</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-success">👨‍🏫</div>
+          <div class="stat-content">
+            <h4>Academic Lecturers</h4>
+            <div class="stat-value" id="adminStatTotalLecturers">2</div>
+            <div class="stat-meta">Active Course Allocations</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-warning">📚</div>
+          <div class="stat-content">
+            <h4>Active Courses</h4>
+            <div class="stat-value" id="adminStatTotalCourses">4</div>
+            <div class="stat-meta">Second Semester 25/26</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-danger">⚡</div>
+          <div class="stat-content">
+            <h4>Held Sessions</h4>
+            <div class="stat-value" id="adminStatTotalSessions">10</div>
+            <div class="stat-meta">Average Att. 86.4%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users & Biometric Credential Directory -->
+      <div class="glass-card" style="margin-bottom: 24px;">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">👥 User & Biometric Template Directory (NDPA Compliant)</h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Identifier / Matric</th>
+                <th>Full Name</th>
+                <th>Role</th>
+                <th>Level</th>
+                <th>Biometric Status</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTableBody">
+              <!-- Rendered via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- System Audit Trail -->
+      <div class="glass-card">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">🛡️ Immutable Audit Logs (NDPA 2023 Standard)</h3>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Actor</th>
+                <th>Action Type</th>
+                <th>Security Details</th>
+              </tr>
+            </thead>
+            <tbody id="adminAuditTableBody">
+              <!-- Rendered via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- -----------------------------------------------------------------------
+         VIEW D: KIOSK SCANNER TERMINAL (Hardware Simulation & WebAuthn)
+         ----------------------------------------------------------------------- -->
+    <section class="portal-view" id="scannerKioskView">
+      <div class="view-header">
+        <div class="view-title-group">
+          <h2>Interactive Biometric Scanner Kiosk Terminal</h2>
+          <p>Simulating Classroom Hardware Scanner (R305 / ESP32 Optical Sensor & WebAuthn Standard)</p>
+        </div>
+      </div>
+
+      <div class="scanner-kiosk-container">
+        <!-- Physical Terminal Representation -->
+        <div class="terminal-hardware-box">
+          <div class="terminal-brand-badge">SMARTBIO-TERMINAL-01 • ONLINE</div>
+          
+          <!-- Optical Sensor Platen -->
+          <div class="optical-platen-wrapper" id="opticalPlaten" title="Touch to scan fingerprint">
+            <div class="sensor-glow-ring"></div>
+            <div class="laser-scan-bar"></div>
+            
+            <!-- Minutiae Detection Layer -->
+            <div class="minutiae-layer">
+              <div class="minutiae-dot" style="top: 35%; left: 45%;"></div>
+              <div class="minutiae-dot" style="top: 55%; left: 38%;"></div>
+              <div class="minutiae-dot" style="top: 48%; left: 62%;"></div>
+              <div class="minutiae-dot" style="top: 68%; left: 52%;"></div>
+            </div>
+
+            <!-- Fingerprint Graphic -->
+            <svg class="fingerprint-svg" viewBox="0 0 100 120">
+              <path d="M 50 15 A 35 35 0 0 0 15 50 C 15 75 25 95 30 110" />
+              <path d="M 50 25 A 25 25 0 0 0 25 50 C 25 70 32 90 38 105" />
+              <path d="M 50 35 A 15 15 0 0 0 35 50 C 35 65 40 85 45 100" />
+              <path d="M 50 45 A 5 5 0 0 0 45 50 C 45 60 48 75 50 90" />
+              <path d="M 50 35 A 15 15 0 0 1 65 50 C 65 65 60 85 55 100" />
+              <path d="M 50 25 A 25 25 0 0 1 75 50 C 75 70 68 90 62 105" />
+              <path d="M 50 15 A 35 35 0 0 1 85 50 C 85 75 75 95 70 110" />
+            </svg>
+          </div>
+
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            👆 <strong>Tap Platen</strong> or use test triggers below
+          </p>
+
+          <!-- HUD Status Screen -->
+          <div class="scanner-hud-screen">
+            <div class="hud-header">
+              <span>SCANNER HUD STATUS</span>
+              <span>256-BIT MINUTIAE HASH</span>
+            </div>
+            <div class="hud-status-text" id="hudStatusTitle">SYSTEM READY</div>
+            <div class="hud-log-line" id="hudStatusLog">Waiting for student fingerprint touch on platen...</div>
+          </div>
+        </div>
+
+        <!-- Simulation Controls & Test Triggers -->
+        <div class="scanner-controls-panel">
+          <div class="glass-card">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">🧪 Hardware Edge Case Simulator</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">
+              Test how the system solves the unreadable scan literature gap with instant flagging and lecturer review.
+            </p>
+            
+            <div class="simulation-btn-group">
+              <button class="btn-sim-test" data-sim-mode="NORMAL" data-student-id="4">
+                <strong>🟢 Normal Scan</strong>
+                <span>Benedict Uche (Match 99%)</span>
+              </button>
+
+              <button class="btn-sim-test" data-sim-mode="SWEATY_RIDGE" data-student-id="8">
+                <strong>🟡 Sweaty Finger Scan</strong>
+                <span>Tunde Bakare (Triggers Flag)</span>
+              </button>
+
+              <button class="btn-sim-test" data-sim-mode="INJURED_FINGER" data-student-id="6">
+                <strong>🟡 Injured Finger Scan</strong>
+                <span>Chukwudi Eze (Triggers Flag)</span>
+              </button>
+
+              <button class="btn-sim-test" data-sim-mode="NON_ENROLLED" data-student-id="0">
+                <strong>🔴 Unregistered Finger</strong>
+                <span>Stranger (Access Denied)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- WebAuthn Browser Native Biometrics Trigger -->
+          <div class="glass-card">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">🔐 Browser Native WebAuthn API</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+              Trigger browser-level biometric authentication (TouchID, Windows Hello, Android Fingerprint).
+            </p>
+            <button class="btn btn-primary" id="btnTriggerWebAuthn" style="width: 100%;">
+              <span>👆</span> Scan via WebAuthn Hardware
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- =========================================================================
+       3. INTERACTIVE ONBOARDING SCREEN & TOUR MODAL
+       ========================================================================= -->
+  <div class="onboarding-overlay" id="onboardingOverlay">
+    <div class="onboarding-card">
+      <!-- Header with Stepper Dots & Close -->
+      <div class="onboarding-header">
+        <div class="brand-container">
+          <div class="brand-icon">⚡</div>
+          <div class="brand-text">
+            <h1 style="font-size: 0.95rem;">Global Wealth University</h1>
+          </div>
+        </div>
+        <div class="stepper-dots">
+          <div class="stepper-dot active" title="Step 1: Introduction"></div>
+          <div class="stepper-dot" title="Step 2: Role Access"></div>
+          <div class="stepper-dot" title="Step 3: Flag Exception"></div>
+          <div class="stepper-dot" title="Step 4: Role Sandbox"></div>
+        </div>
+        <button class="modal-close" id="btnTourCloseIcon" title="Close Tour" style="font-size: 20px; line-height: 1; padding: 4px 8px;">×</button>
+      </div>
+
+      <!-- Slide Contents -->
+      <div class="onboarding-body">
+        <!-- Slide 1: Welcome & Context -->
+        <div class="tour-slide active" id="tourSlide1">
+          <div class="hero-tag">🎓 Global Wealth University • Final-Year B.Sc. Project</div>
+          <h2>Global Wealth University Biometric Attendance & NUC Compliance System</h2>
+          <p>
+            Welcome to the official Global Wealth University SmartBio platform! This system automates student attendance verification, enforces the 
+            <strong>National Universities Commission (NUC) 75% examination eligibility rule</strong>, and introduces 
+            an intelligent <strong>exception flagging workflow</strong> for unreadable biometric scans.
+          </p>
+          <div class="feature-preview-grid">
+            <div class="feature-mini-card">
+              <div class="feature-mini-icon">🛡️</div>
+              <h4>NUC 75% Rule</h4>
+              <p>Automatic compliance calculation and defaulter lists.</p>
+            </div>
+            <div class="feature-mini-card">
+              <div class="feature-mini-icon">🖲️</div>
+              <h4>Dual Biometrics</h4>
+              <p>WebAuthn browser biometrics & optical scanner simulator.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 2: Multi-Role Portals -->
+        <div class="tour-slide" id="tourSlide2">
+          <div class="hero-tag">👥 Role-Based Access Control (RBAC)</div>
+          <h2>Tailored Portals for Every Academic Stakeholder</h2>
+          <p>
+            Explore dedicated workflows engineered specifically for University Administrators, Lecturers, 
+            Students, and Classroom Terminal Scanners.
+          </p>
+          <div class="feature-preview-grid">
+            <div class="feature-mini-card">
+              <div class="feature-mini-icon">👨‍🏫</div>
+              <h4>Lecturer Radar</h4>
+              <p>Live streaming attendance radar and flag override tools.</p>
+            </div>
+            <div class="feature-mini-card">
+              <div class="feature-mini-icon">🎓</div>
+              <h4>Student Dockets</h4>
+              <p>Real-time progress gauges and printable exam dockets.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 3: Flagged Exception Innovation -->
+        <div class="tour-slide" id="tourSlide3">
+          <div class="hero-tag">⚡ Literature Gap Innovation</div>
+          <h2>Intelligent Flagged Exception Handling</h2>
+          <p>
+            Traditional systems lock out students when finger ridges are sweaty or injured. 
+            SmartBio automatically flags unmatched scans to the lecturer's live queue for physical verification 
+            and audited override without interrupting the lecture.
+          </p>
+          <div class="feature-preview-grid">
+            <div class="feature-mini-card">
+              <div class="feature-mini-icon">⚠️</div>
+              <h4>Auto Flagging</h4>
+              <p>Routes low-confidence scans to lecturer in real time.</p>
+            </div>
+            <div class="feature-mini-card">
+              <div class="feature-mini-icon">📋</div>
+              <h4>NDPA Audit Trail</h4>
+              <p>Every manual override is logged for regulatory compliance.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 4: Quick-Start Role Sandbox -->
+        <div class="tour-slide" id="tourSlide4">
+          <div class="hero-tag">🚀 Instant Demo Sandbox</div>
+          <h2>Select a Role to Start Exploring</h2>
+          <p>
+            Jump directly into any perspective with pre-populated 400-level university course datasets.
+          </p>
+          <div class="role-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+            <div class="role-entry-card role-lecturer" data-role="LECTURER" data-user-id="2">
+              <div class="role-card-icon">👨‍🏫</div>
+              <h3>Lecturer</h3>
+              <p>Dr. Adeyemi (CSC 401 Live Radar & Flag Resolver)</p>
+              <span class="role-badge-tag">Explore Lecturer →</span>
+            </div>
+
+            <div class="role-entry-card" style="border-color: rgba(245, 158, 11, 0.4);" data-role="CLASS_REP" data-user-id="6">
+              <div class="role-card-icon" style="color: var(--warning);">👥</div>
+              <h3>Class Rep</h3>
+              <p>Chukwudi Eze (Proctor, Headcount & Alerts)</p>
+              <span class="role-badge-tag" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Explore Class Rep →</span>
+            </div>
+
+            <div class="role-entry-card role-student" data-role="STUDENT" data-user-id="4">
+              <div class="role-card-icon">🎓</div>
+              <h3>Student</h3>
+              <p>Benedict Uche (NUC 75% Gauges & Exam Docket)</p>
+              <span class="role-badge-tag">Explore Student →</span>
+            </div>
+
+            <div class="role-entry-card role-admin" data-role="ADMIN" data-user-id="1">
+              <div class="role-card-icon">👨‍💼</div>
+              <h3>Admin</h3>
+              <p>Dr. Balogun (User Directory & SQL Exporter)</p>
+              <span class="role-badge-tag">Explore Admin →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Footer -->
+      <div class="onboarding-footer">
+        <button class="btn-skip-tour" id="btnTourSkip">Skip to App</button>
+        <div class="tour-nav-btns">
+          <button class="btn btn-secondary" id="btnTourPrev">Back</button>
+          <button class="btn btn-primary" id="btnTourNext">Continue →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =========================================================================
+       4. MODALS (Flagged Override, Exam Docket, Cloud Sync)
+       ========================================================================= -->
+
+  <!-- Flagged Exception Resolve Modal -->
+  <div class="modal-overlay" id="flagResolveModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>⚠️ Review Flagged Attendance Exception</h3>
+        <button class="modal-close" onclick="smartBioApp.closeResolveModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="resolveFlagId">
+        <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span class="text-muted">Student Name:</span>
+            <strong id="resolveStudentName">Tunde Bakare</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span class="text-muted">Matriculation No:</span>
+            <strong class="font-mono" id="resolveStudentMatric">GWU/CSC/22/052</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span class="text-muted">Flag Reason:</span>
+            <span class="flag-tag" id="resolveFlagReason">INJURED_FINGER_LOW_RIDGE</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mandatory Lecturer Audit Remark</label>
+          <input type="text" class="form-control" id="resolveLecturerNote" value="Verified physical student ID card and photo match.">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger btn-sm" onclick="smartBioApp.submitResolveOverride('REJECT')">Reject</button>
+        <button class="btn btn-success btn-sm" onclick="smartBioApp.submitResolveOverride('APPROVE')">✓ Approve Attendance</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Examination Clearance Docket Modal -->
+  <div class="modal-overlay" id="docketModal">
+    <div class="modal-dialog" style="max-width: 820px;">
+      <div class="modal-header no-print">
+        <h3 style="font-size: 1rem;">📜 Official Examination Clearance Docket</h3>
+        <button class="modal-close" onclick="smartBioApp.closeDocketModal()">×</button>
+      </div>
+      <div class="modal-body" id="docketRenderContainer" style="padding: 16px; overflow-x: hidden;">
+        <!-- Rendered via compliance.js -->
+      </div>
+      <div class="modal-footer no-print">
+        <button class="btn btn-secondary" onclick="smartBioApp.closeDocketModal()">Close</button>
+        <button class="btn btn-primary" id="btnPrintDocketAction">🖨️ Print / Save as PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Cloud Sync Modal -->
+  <div class="modal-overlay" id="cloudConfigModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>☁️ Cloud Firestore Multi-Device Sync</h3>
+        <button class="modal-close" id="btnCloseCloudModal">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+          Connect your free Firebase Firestore database to enable real-time multi-device synchronization across laptops, phones, and kiosk tablets.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Firebase API Key</label>
+          <input type="text" class="form-control font-mono" id="fbApiKey" placeholder="AIzaSy...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Project ID</label>
+          <input type="text" class="form-control font-mono" id="fbProjectId" placeholder="smartbio-university-demo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">App ID</label>
+          <input type="text" class="form-control font-mono" id="fbAppId" placeholder="1:123456789:web:abcdef">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="smartBioApp.closeCloudModal()">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveFirebaseConfig">Save & Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Application Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/biometric.js"></script>
+  <script src="js/compliance.js"></script>
+  <script src="js/onboarding.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

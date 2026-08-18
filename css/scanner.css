@@ -1,0 +1,309 @@
+/* ==========================================================================
+   GLOBAL WEALTH UNIVERSITY — BIOMETRIC SCANNER KIOSK
+   Optical Platen, Laser Sweep, Minutiae HUD · Mobile-First
+   ========================================================================== */
+
+/* ==========================================================================
+   KIOSK LAYOUT
+   ========================================================================== */
+
+.scanner-kiosk-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  align-items: start;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+/* ==========================================================================
+   HARDWARE TERMINAL BOX
+   ========================================================================== */
+
+.terminal-hardware-box {
+  background: radial-gradient(circle at center, #1a233a 0%, #0d121f 100%);
+  border: 2px solid var(--border-glow);
+  border-radius: 26px;
+  padding: 28px 22px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), inset 0 0 30px rgba(0, 242, 254, 0.08);
+  position: relative;
+}
+
+.terminal-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 242, 254, 0.1);
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--primary);
+  margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   OPTICAL SENSOR PLATEN
+   ========================================================================== */
+
+.optical-platen-wrapper {
+  width: 200px;
+  height: 248px;
+  margin: 0 auto 20px;
+  background: #080c14;
+  border: 3px solid #1e293b;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 14px rgba(0, 242, 254, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Glowing Sensor Ring */
+.sensor-glow-ring {
+  position: absolute;
+  inset: 10px;
+  border-radius: 16px;
+  border: 2px dashed rgba(0, 242, 254, 0.35);
+  animation: rotate-ring 20s linear infinite;
+}
+
+@keyframes rotate-ring {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Fingerprint SVG */
+.fingerprint-svg {
+  width: 126px;
+  height: 154px;
+  fill: none;
+  stroke: rgba(0, 242, 254, 0.4);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: all 0.3s ease;
+}
+
+.optical-platen-wrapper:hover .fingerprint-svg {
+  stroke: var(--primary);
+  filter: drop-shadow(0 0 8px var(--primary));
+}
+
+/* Laser Scan Line */
+.laser-scan-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary);
+  box-shadow: 0 0 16px 4px var(--primary);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.optical-platen-wrapper.scanning .laser-scan-bar {
+  opacity: 1;
+  animation: laser-sweep 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes laser-sweep {
+  0%   { top: 10%; }
+  100% { top: 90%; }
+}
+
+/* Minutiae Detection Points */
+.minutiae-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.optical-platen-wrapper.scanning .minutiae-layer {
+  opacity: 1;
+}
+
+.minutiae-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: ping-minutiae 1s infinite alternate;
+}
+
+@keyframes ping-minutiae {
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 1; }
+}
+
+/* Platen State Variants */
+.optical-platen-wrapper.success {
+  border-color: var(--success);
+  box-shadow: 0 0 30px var(--success-glow);
+}
+.optical-platen-wrapper.success .fingerprint-svg {
+  stroke: var(--success);
+  filter: drop-shadow(0 0 12px var(--success));
+}
+
+.optical-platen-wrapper.flagged {
+  border-color: var(--warning);
+  box-shadow: 0 0 30px var(--warning-glow);
+}
+.optical-platen-wrapper.flagged .fingerprint-svg {
+  stroke: var(--warning);
+  filter: drop-shadow(0 0 12px var(--warning));
+}
+
+.optical-platen-wrapper.error {
+  border-color: var(--danger);
+  box-shadow: 0 0 30px var(--danger-glow);
+}
+.optical-platen-wrapper.error .fingerprint-svg {
+  stroke: var(--danger);
+  filter: drop-shadow(0 0 12px var(--danger));
+}
+
+/* ==========================================================================
+   SCANNER HUD SCREEN
+   ========================================================================== */
+
+.scanner-hud-screen {
+  background: #090d16;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: left;
+  font-family: var(--font-mono);
+  margin-top: 14px;
+}
+
+.hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.hud-status-text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 5px;
+}
+
+.hud-log-line {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   EDGE CASE SIMULATOR CONTROLS
+   ========================================================================== */
+
+.scanner-controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.simulation-btn-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.btn-sim-test {
+  padding: 12px 14px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  transition: var(--transition-fast);
+  min-height: 60px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-sim-test:hover {
+  border-color: var(--primary);
+  background: var(--bg-glass-hover);
+  transform: translateY(-1px);
+}
+
+.btn-sim-test:active {
+  transform: scale(0.97);
+}
+
+.btn-sim-test span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ==========================================================================
+   RESPONSIVE — Scanner
+   ========================================================================== */
+
+/* Stack to single column below 860px */
+@media (max-width: 860px) {
+  .scanner-kiosk-container {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    max-width: 520px;
+  }
+}
+
+/* Compact platen on small phones */
+@media (max-width: 480px) {
+  .terminal-hardware-box {
+    padding: 20px 14px;
+    border-radius: 20px;
+  }
+
+  .optical-platen-wrapper {
+    width: 168px;
+    height: 208px;
+  }
+
+  .fingerprint-svg {
+    width: 104px;
+    height: 128px;
+  }
+
+  .simulation-btn-group {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .btn-sim-test {
+    padding: 10px 10px;
+    font-size: 0.78rem;
+    min-height: 52px;
+  }
+
+  .hud-status-text {
+    font-size: 0.95rem;
+  }
+}

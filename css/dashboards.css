@@ -1,0 +1,928 @@
+/* ==========================================================================
+   GLOBAL WEALTH UNIVERSITY — DASHBOARDS, PORTALS & DOCKET
+   Admin, Lecturer, Class Rep, Student Portals + Printable Clearance Docket
+   Mobile-First Responsive Layout
+   ========================================================================== */
+
+/* ==========================================================================
+   PORTAL VIEW SWITCHING
+   ========================================================================== */
+
+.portal-view {
+  display: none;
+  animation: fade-in 0.28s ease forwards;
+}
+
+.portal-view.active {
+  display: block;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* View Header Row */
+.view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.view-title-group h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.view-title-group p {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   STAT METRIC CARDS
+   ========================================================================== */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: var(--transition-fast);
+}
+
+.stat-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+}
+
+.stat-icon-wrapper {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stat-icon-primary { color: var(--primary);  background: rgba(0, 242, 254, 0.1); }
+.stat-icon-success { color: var(--success); background: rgba(16, 185, 129, 0.1); }
+.stat-icon-warning { color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+.stat-icon-danger  { color: var(--danger);  background: rgba(239, 68, 68, 0.1); }
+
+.stat-content h4 {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-content .stat-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.stat-content .stat-meta {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   SPLIT GRID (Lecturer Dashboard)
+   ========================================================================== */
+
+.dashboard-split-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+
+/* ==========================================================================
+   DATA TABLES
+   ========================================================================== */
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* show a subtle scroll hint on mobile */
+  border-radius: var(--radius-sm);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.85rem;
+  min-width: 520px; /* prevent columns crushing */
+}
+
+.data-table th {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  vertical-align: middle;
+}
+
+.data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ==========================================================================
+   LIVE SESSION RADAR BANNER (Lecturer)
+   ========================================================================== */
+
+.live-session-banner {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(0, 242, 254, 0.1) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.radar-pulse-ring {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.radar-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 14px var(--success);
+  animation: radar-beacon 1.5s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes radar-beacon {
+  0%   { transform: scale(0.9); opacity: 0.8; }
+  50%  { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+/* ==========================================================================
+   FLAGGED EXCEPTION QUEUE
+   ========================================================================== */
+
+.flagged-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flagged-card {
+  background: rgba(121, 40, 202, 0.1);
+  border: 1px solid rgba(121, 40, 202, 0.35);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: var(--transition-fast);
+  flex-wrap: wrap;
+}
+
+.flagged-card:hover {
+  border-color: rgba(121, 40, 202, 0.6);
+  background: rgba(121, 40, 202, 0.15);
+}
+
+.flagged-student-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.student-avatar-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-glass);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.flagged-details h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.flagged-details p {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.flag-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+/* ==========================================================================
+   STUDENT COURSE ATTENDANCE GAUGES
+   ========================================================================== */
+
+.course-gauge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.course-gauge-card {
+  background: var(--bg-glass-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+
+.gauge-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.gauge-header h3 {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.gauge-header span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.progress-bar-container {
+  height: 9px;
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin: 12px 0 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fill-eligible   { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.fill-at-risk    { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+.fill-ineligible { background: var(--danger);  box-shadow: 0 0 8px var(--danger); }
+
+/* ==========================================================================
+   EXAMINATION CLEARANCE DOCKET (Screen View)
+   White-background document inside dark modal
+   ========================================================================== */
+
+.docket-wrapper {
+  background: #ffffff;
+  color: #1e293b;
+  border-radius: 10px;
+  padding: 28px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  max-width: 780px;
+  margin: 0 auto;
+  border: 2px solid #e2e8f0;
+  overflow-x: hidden;
+}
+
+.docket-header {
+  text-align: center;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+
+.docket-header h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #0f172a;
+  letter-spacing: 0.04em;
+}
+
+.docket-header h4 {
+  font-size: 0.88rem;
+  color: #475569;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.docket-header .docket-session {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.docket-student-info-grid {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.docket-info-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.docket-info-item span {
+  font-size: 0.75rem;
+  color: #64748b;
+  display: block;
+}
+
+.docket-info-item strong {
+  color: #0f172a;
+}
+
+.docket-qr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.qr-placeholder {
+  width: 84px;
+  height: 84px;
+  background: #0f172a;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  border-radius: 6px;
+  padding: 4px;
+  text-align: center;
+}
+
+.docket-courses-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  font-size: 0.82rem;
+}
+
+.docket-courses-table th {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 9px 11px;
+  text-align: left;
+  font-weight: 700;
+}
+
+.docket-courses-table td {
+  padding: 9px 11px;
+  border-bottom: 1px solid #cbd5e1;
+  color: #1e293b;
+}
+
+.stamp-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 800;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.stamp-cleared {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.stamp-barred {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.docket-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-top: 32px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.sign-line {
+  border-top: 1px dashed #64748b;
+  padding-top: 5px;
+  margin-top: 36px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   RESPONSIVE OVERRIDES FOR DASHBOARDS
+   ========================================================================== */
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .dashboard-split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet / Large Phone */
+@media (max-width: 768px) {
+  .view-title-group h2 {
+    font-size: 1.2rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .live-session-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .flagged-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .flagged-card button {
+    width: 100%;
+  }
+
+  .course-gauge-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Docket on tablet */
+  .docket-wrapper {
+    padding: 18px 14px;
+    border-radius: 8px;
+  }
+
+  .docket-student-info-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .docket-qr-box {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+  }
+
+  .docket-info-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .docket-signatures {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 20px;
+  }
+
+  .sign-line {
+    margin-top: 20px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .view-header {
+    gap: 10px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 14px 12px;
+    gap: 10px;
+  }
+
+  .stat-icon-wrapper {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .stat-content .stat-value {
+    font-size: 1.35rem;
+  }
+
+  .data-table {
+    font-size: 0.8rem;
+    min-width: 420px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 9px 10px;
+  }
+
+  /* Docket on mobile */
+  .docket-wrapper {
+    padding: 14px 10px;
+  }
+
+  .docket-header h2 {
+    font-size: 1rem;
+  }
+
+  .docket-header h4 {
+    font-size: 0.8rem;
+  }
+
+  .docket-info-list {
+    grid-template-columns: 1fr;
+  }
+
+  .docket-courses-table {
+    font-size: 0.72rem;
+  }
+
+  .docket-courses-table th,
+  .docket-courses-table td {
+    padding: 7px 8px;
+  }
+
+  .docket-signatures {
+    grid-template-columns: 1fr;
+  }
+
+  .course-gauge-card {
+    padding: 14px;
+  }
+}
+
+/* ==========================================================================
+   OFFICIAL PRINT & PDF STYLESHEET (A4 Academic Defense Compliant)
+   ========================================================================== */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm 12mm 14mm;
+  }
+
+  /* Reset everything to white / black for clean print */
+  *, *::before, *::after {
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+    font-size: 10.5pt !important;
+    line-height: 1.4 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* ---- Hide everything that is not the docket ---- */
+  .top-navbar,
+  .role-pills,
+  .nav-actions,
+  .toast-container,
+  .onboarding-overlay,
+  .no-print,
+  .modal-header,
+  .modal-footer,
+  .modal-close,
+  #lectureSessionConfigBox,
+  .live-session-banner,
+  .scanner-kiosk-container,
+  .simulation-btn-group,
+  #cloudConfigModal,
+  #flagResolveModal,
+  .btn,
+  .hero-tag,
+  .stats-grid,
+  .view-header {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* ---- Portal views: only show the active one ---- */
+  .app-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-view { display: none !important; }
+  .portal-view.active { display: block !important; }
+
+  /* ---- Docket Modal expands to fill page ---- */
+  #docketModal,
+  #docketModal.active {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    display: block !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  #docketModal .modal-dialog,
+  #docketModal.active .modal-dialog {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    display: block !important;
+    border-radius: 0 !important;
+  }
+
+  #docketModal .modal-body {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* ---- Docket document itself ---- */
+  .docket-wrapper {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #0f172a !important;
+    border-radius: 6px !important;
+    padding: 22px 26px !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .docket-header {
+    text-align: center !important;
+    border-bottom: 2px solid #0f172a !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .docket-header h2 {
+    font-size: 14pt !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  .docket-header h4 {
+    font-size: 9.5pt !important;
+    color: #334155 !important;
+    font-weight: 700 !important;
+  }
+
+  .docket-header h3 {
+    font-size: 10.5pt !important;
+    color: #008080 !important;
+    margin-top: 5px !important;
+  }
+
+  .docket-student-info-grid {
+    display: grid !important;
+    grid-template-columns: 3fr 1fr !important;
+    gap: 14px !important;
+    margin-bottom: 16px !important;
+    padding: 10px 14px !important;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 5px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .docket-info-list {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    font-size: 9pt !important;
+  }
+
+  .docket-info-item span { color: #475569 !important; font-size: 8pt !important; }
+  .docket-info-item strong { color: #000000 !important; }
+
+  .docket-qr-box {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .qr-placeholder {
+    width: 76px !important;
+    height: 76px !important;
+    background: #0f172a !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    display: grid !important;
+    place-items: center !important;
+    border-radius: 4px !important;
+  }
+
+  .docket-courses-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 14px 0 !important;
+    font-size: 9pt !important;
+  }
+
+  .docket-courses-table th {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    padding: 6px 9px !important;
+    border: 1px solid #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  .docket-courses-table td {
+    color: #000000 !important;
+    padding: 6px 9px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+  }
+
+  .stamp-badge {
+    display: inline-block !important;
+    padding: 2px 5px !important;
+    border-radius: 3px !important;
+    font-size: 8pt !important;
+    font-weight: 800 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .stamp-cleared {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    border: 1px solid #86efac !important;
+  }
+
+  .stamp-barred {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fca5a5 !important;
+  }
+
+  .docket-signatures {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 18px !important;
+    margin-top: 26px !important;
+    text-align: center !important;
+    font-size: 8.5pt !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .sign-line {
+    border-top: 1px dashed #000000 !important;
+    padding-top: 5px !important;
+    margin-top: 30px !important;
+    font-weight: 700 !important;
+    color: #000000 !important;
+  }
+
+  /* ---- Roster / Table printing from Lecturer view ---- */
+  .glass-card {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 5px !important;
+    box-shadow: none !important;
+    padding: 14px !important;
+    margin-bottom: 14px !important;
+    page-break-inside: avoid;
+  }
+
+  .data-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9pt !important;
+    min-width: 0 !important;
+  }
+
+  .data-table th {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-weight: 700 !important;
+  }
+
+  .data-table td {
+    color: #000000 !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 6px 8px !important;
+    background: #ffffff !important;
+  }
+
+  .badge {
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

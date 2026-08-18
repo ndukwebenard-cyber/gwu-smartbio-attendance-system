@@ -1,0 +1,34 @@
+sequenceDiagram
+%% ============================================================================
+%% GLOBAL WEALTH UNIVERSITY — SMARTBIO ATTENDANCE SYSTEM
+%% Real-Time Multi-Device Synchronization Sequence Diagram
+%% Open in https://mermaid.live
+%% ============================================================================
+
+    autonumber
+    actor Student as 🎓 Student (Benedict)
+    participant Kiosk as 🖲️ Scanner Kiosk (Tablet)
+    participant Cloud as ☁️ Firebase Firestore (Cloud)
+    participant Lecturer as 👨‍🏫 Lecturer Laptop (Dr. Adeyemi)
+    participant Mobile as 📱 Student Phone (Portal)
+
+    Note over Lecturer: Lecturer starts session for CSC 401
+    Lecturer->>Cloud: POST /sessions (status: ACTIVE, topic: CSC 401)
+    Cloud-->>Kiosk: Live Sync: Session Active for CSC 401
+
+    Note over Student, Kiosk: Student arrives at lecture hall
+    Student->>Kiosk: Touch Finger on Optical Sensor Platen
+    Kiosk->>Kiosk: Extract Minutiae & Compute Confidence (98.4%)
+    Kiosk->>Kiosk: Play Success Chime & Flash Green
+    
+    Kiosk->>Cloud: Write /attendance (matric: GWU/CSC/22/001, status: PRESENT)
+    
+    par Real-Time Broadcast via onSnapshot WebSockets
+        Cloud-->>Lecturer: Stream New Scan (Benedict Uche - 98.4%)
+        Lecturer->>Lecturer: Beep Audio & Update Live Radar Table (+1 Present)
+        Lecturer->>Lecturer: Recalculate 75% Defaulter Sheet
+    and
+        Cloud-->>Mobile: Stream New Scan to Student Device
+        Mobile->>Mobile: Update CSC 401 Gauge to 90% (🟢 ELIGIBLE)
+        Mobile->>Mobile: Enable "Generate Exam Clearance Docket"
+    end

@@ -1,0 +1,46 @@
+flowchart TD
+%% ============================================================================
+%% GLOBAL WEALTH UNIVERSITY — SMARTBIO ATTENDANCE SYSTEM
+%% Biometric Verification & Flagged Exception Handling Flowchart
+%% (Solves the Literature Gap of Unreadable / Sweaty Finger Scans)
+%% Open in https://mermaid.live
+%% ============================================================================
+
+    Start(["Student Places Finger on Optical Platen / WebAuthn Sensor"]) --> Capture["Optical Sensor Captures Ridge Pattern<br>& Extracts Minutiae Features"]
+    Capture --> QualityCheck{"Ridge Image Quality<br>& Clarity Sufficient?"}
+
+    %% Unreadable / Sweaty Quality Branch
+    QualityCheck -- "No (Sweaty / Injured Ridge)" --> GenFlag1["Generate Exception Status: FLAGGED<br>Reason: SWEATY_RIDGE / LOW_CLARITY"]
+    
+    %% Quality OK -> Database Match
+    QualityCheck -- "Yes" --> MatchDB["Compare Minutiae Hash against<br>University Enrolled Template DB"]
+    MatchDB --> MatchConfidence{"Minutiae Match Confidence<br>Score &ge; 70.0%?"}
+
+    %% Low Match -> Flagged Branch
+    MatchConfidence -- "No (40.0% - 69.9%)" --> GenFlag2["Generate Exception Status: FLAGGED<br>Reason: UNMATCHED_TEMPLATE_RIDGE"]
+    
+    %% Unregistered / Stranger Branch
+    MatchConfidence -- "No (< 20.0%)" --> Rejected["Status: REJECTED (Access Denied)<br>Student Not Enrolled in Course"]
+    Rejected --> PlayBuzz["Play Error Buzz & HUD: Access Denied"] --> EndFail(["Scan Terminated"])
+
+    %% Successful High Match Branch
+    MatchConfidence -- "Yes (&ge; 70.0%)" --> Verified["Status: PRESENT (Verified)<br>Match Confidence 96.0% - 99.8%"]
+    Verified --> PlayChime["Play Crystal Success Chime"]
+    PlayChime --> SyncStream["Push to Live Attendance Stream<br>& Update NUC Rate"]
+    SyncStream --> EndPass(["Student Successfully Checked In"])
+
+    %% Flagged Handling Flow
+    GenFlag1 --> PlayWarn["Play Double Warning Beep<br>& HUD: FLAGGED EXCEPTION"]
+    GenFlag2 --> PlayWarn
+    PlayWarn --> PushQueue["Route Flag to Lecturer's Live Queue<br>with Student Details & Timestamp"]
+    PushQueue --> LecturerReview["Lecturer Inspects Physical Student ID Card<br>& Photo Roster in Lecture Hall"]
+    LecturerReview --> Decision{"Lecturer Verification<br>Decision"}
+
+    Decision -- "Approve Identity" --> InputNote["Lecturer Enters Mandatory Audit Note:<br>'Verified physical ID card & photo'"]
+    InputNote --> CreditAttendance["Credit Attendance as FLAGGED_RESOLVED<br>(Marked as PRESENT)"]
+    CreditAttendance --> LogAudit["Log Immutable NDPA 2023 Audit Trail<br>(Actor: Lecturer, Target: Student, Time)"]
+    LogAudit --> EndResolved(["Attendance Credited to Student"])
+
+    Decision -- "Reject Identity" --> RejectFlag["Mark as REJECTED / ABSENT"]
+    RejectFlag --> LogAuditReject["Log Fraud / Impersonation Attempt in Audit Log"]
+    LogAuditReject --> EndRejected(["Student Denied Attendance"])

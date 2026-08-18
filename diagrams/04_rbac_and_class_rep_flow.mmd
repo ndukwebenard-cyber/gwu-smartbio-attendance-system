@@ -1,0 +1,30 @@
+graph TD
+%% ============================================================================
+%% GLOBAL WEALTH UNIVERSITY — SMARTBIO ATTENDANCE SYSTEM
+%% Role-Based Access Control (RBAC) & Class Representative Proctoring Boundary
+%% Demonstrates Principle of Least Privilege (PoLP) & Separation of Duties (SoD)
+%% Open in https://mermaid.live
+%% ============================================================================
+
+    User([Authenticated User Enters Platform]) --> RoleCheck{System RBAC Role Resolver}
+
+    %% 1. Admin Role
+    RoleCheck -- "Role: ADMINISTRATOR" --> AdminView["👨‍💼 Administrator Portal"]
+    AdminView --> AdminPerms["• Manage Academic Sessions & Courses<br>• Register Users & Hash Biometrics<br>• View Immutable NDPA Audit Trail<br>• 1-Click SQL Dump Exporter<br>• System Reset to Seeds"]
+
+    %% 2. Lecturer Role
+    RoleCheck -- "Role: LECTURER" --> LecturerView["👨‍🏫 Lecturer Portal"]
+    LecturerView --> LecturerPerms["• Start/End Live Lecture Sessions<br>• Stream Real-Time Attendance Radar<br>• Review & Override Flagged Exceptions<br>• Export NUC Defaulter Lists"]
+
+    %% 3. Class Rep Role (Proctor)
+    RoleCheck -- "Role: CLASS_REPRESENTATIVE" --> RepView["👥 Class Representative Portal (Proctor)"]
+    RepView --> RepPermsAllowed["✅ ALLOWED PRIVILEGES:<br>• Launch Kiosk Scanner Mode on Hall Tablet<br>• View Live Headcount Radar (e.g. 42/50 In Hall)<br>• Broadcast Course 75% Defaulter Warning Notice<br>• View & Print Own Exam Clearance Docket"]
+    RepView --> RepPermsDenied["❌ STRICTLY PROHIBITED (SoD Boundary):<br>• CANNOT Override Flagged Scans<br>• CANNOT Manually Mark Students Present<br>• CANNOT Modify Database Registrations"]
+
+    %% 4. Student Role
+    RoleCheck -- "Role: STUDENT" --> StudentView["🎓 Student Portal"]
+    StudentView --> StudentPerms["• View Personal NUC 75% Progress Gauges<br>• Inspect Detailed Lecture Attendance Log<br>• Generate Official QR-Coded Exam Docket"]
+
+    %% 5. Scanner Terminal Role
+    RoleCheck -- "Role: KIOSK_TERMINAL" --> KioskView["🖲️ Classroom Scanner Kiosk Terminal"]
+    KioskView --> KioskPerms["• Interactive Optical Fingerprint Scanner<br>• Laser Sweep & Minutiae Point Detection<br>• Web Audio Acoustic Feedback<br>• Edge-Case Error Simulation Triggers"]

@@ -1,0 +1,38 @@
+flowchart TD
+%% ============================================================================
+%% GLOBAL WEALTH UNIVERSITY — SMARTBIO ATTENDANCE SYSTEM
+%% NUC 75% Rule Compliance & Examination Clearance Docket Algorithm
+%% Open in https://mermaid.live
+%% ============================================================================
+
+    Start(["Start NUC Compliance Evaluation for Student"]) --> FetchRecords["Fetch Total Conducted Lectures (C)<br>Fetch Student Attended Lectures (A)"]
+    FetchRecords --> CheckConducted{"Conducted Lectures (C) > 0?"}
+
+    CheckConducted -- "No (Semester Just Began)" --> Default100["Attendance Percentage = 100.0%<br>Status: ELIGIBLE (Initial)"]
+    
+    CheckConducted -- "Yes" --> ComputeFormula["Apply NUC Formula:<br>P = (A / C) &times; 100"]
+
+    Default100 --> ThresholdCheck
+    ComputeFormula --> ThresholdCheck{"Evaluate Percentage (P)<br>Against NUC Mandates"}
+
+    %% Category 1: Cleared
+    ThresholdCheck -- "P &ge; 75.00%" --> CatEligible["Status: ELIGIBLE (CLEARED)<br>Badge: 🟢 GREEN"]
+    CatEligible --> ActionEligible["Authorize Examination Clearance<br>Generate Clearance Stamp: CLEARED"]
+
+    %% Category 2: At Risk
+    ThresholdCheck -- "70.00% &le; P < 74.99%" --> CatAtRisk["Status: AT_RISK (WARNING)<br>Badge: 🟡 AMBER"]
+    CatAtRisk --> Forecast["Compute Required Lectures (x):<br>x = &lceil;(0.75&times;C - A) / 0.25&rceil;"]
+    Forecast --> AlertStudent["Send Deficit Alert to Student & Class Rep:<br>'Must attend next x lectures'"]
+
+    %% Category 3: Ineligible Defaulter
+    ThresholdCheck -- "P < 70.00%" --> CatIneligible["Status: INELIGIBLE (DEFAULTER)<br>Badge: 🔴 RED"]
+    CatIneligible --> Barred["Flag as Examination Defaulter<br>Barred from Writing Course Exam"]
+
+    %% Docket Generation Pipeline
+    ActionEligible --> DocketPipeline["Compile All Registered 400L Courses"]
+    AlertStudent --> DocketPipeline
+    Barred --> DocketPipeline
+
+    DocketPipeline --> GenerateQR["Generate Cryptographic QR Verification Token:<br>GWU-NUC-VERIFY:MATRIC:HASH"]
+    GenerateQR --> RenderDocket["Render Official Printable Clearance Docket<br>(Student Details, Course Stamps, Signatures)"]
+    RenderDocket --> EndDoc(["Defense-Ready Printable Exam Clearance Docket"])
