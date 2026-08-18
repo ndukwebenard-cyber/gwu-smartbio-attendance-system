@@ -1,34 +1,42 @@
 sequenceDiagram
 %% ============================================================================
 %% GLOBAL WEALTH UNIVERSITY — SMARTBIO ATTENDANCE SYSTEM
-%% Real-Time Multi-Device Synchronization Sequence Diagram
+%% Real-Time Multi-Device Synchronization & Firebase Auth Sequence Diagram
 %% Open in https://mermaid.live
 %% ============================================================================
 
     autonumber
+    actor Lecturer as 👨‍🏫 Lecturer (Dr. Adeyemi)
     actor Student as 🎓 Student (Benedict)
     participant Kiosk as 🖲️ Scanner Kiosk (Tablet)
+    participant Auth as 🔐 Firebase Auth (JWT / RBAC)
     participant Cloud as ☁️ Firebase Firestore (Cloud)
-    participant Lecturer as 👨‍🏫 Lecturer Laptop (Dr. Adeyemi)
     participant Mobile as 📱 Student Phone (Portal)
 
-    Note over Lecturer: Lecturer starts session for CSC 401
-    Lecturer->>Cloud: POST /sessions (status: ACTIVE, topic: CSC 401)
-    Cloud-->>Kiosk: Live Sync: Session Active for CSC 401
+    %% 1. Lecturer Authentication & Session Start
+    Note over Lecturer, Auth: 1. Lecturer Login & RBAC Handshake
+    Lecturer->>Auth: signInWithEmailAndPassword(staff_email, password)
+    Auth-->>Lecturer: Return JWT Token & Claims (role: 'LECTURER')
+    Lecturer->>Cloud: POST /sessions (status: ACTIVE, course: CSC 401, token: Valid)
+    Cloud-->>Kiosk: Live WebSocket Push: Session Active for CSC 401
 
-    Note over Student, Kiosk: Student arrives at lecture hall
-    Student->>Kiosk: Touch Finger on Optical Sensor Platen
-    Kiosk->>Kiosk: Extract Minutiae & Compute Confidence (98.4%)
-    Kiosk->>Kiosk: Play Success Chime & Flash Green
+    %% 2. Student Biometric Check-In
+    Note over Student, Kiosk: 2. Hardware Minutiae Scan & Verification
+    Student->>Kiosk: Place Finger on Optical Platen / WebAuthn Sensor
+    Kiosk->>Kiosk: Extract Minutiae & Match Stored Template Hash (SHA-256)
+    Kiosk->>Kiosk: Compute Confidence Score (98.4% >= Threshold)
+    Kiosk->>Kiosk: Acoustic Chime & Green Laser Pulse
     
-    Kiosk->>Cloud: Write /attendance (matric: GWU/CSC/22/001, status: PRESENT)
+    %% 3. Secure Cloud Write
+    Kiosk->>Cloud: POST /attendance (matric: GWU/CSC/22/001, status: PRESENT, hash: valid)
     
+    %% 4. Real-Time Multi-Device Broadcast
     par Real-Time Broadcast via onSnapshot WebSockets
-        Cloud-->>Lecturer: Stream New Scan (Benedict Uche - 98.4%)
-        Lecturer->>Lecturer: Beep Audio & Update Live Radar Table (+1 Present)
-        Lecturer->>Lecturer: Recalculate 75% Defaulter Sheet
+        Cloud-->>Lecturer: Stream Attendance Document (Benedict Uche - 98.4%)
+        Lecturer->>Lecturer: Play Arrival Chime & Increment Live Headcount Radar
+        Lecturer->>Lecturer: Recompute NUC 75% Defaulter Matrix
     and
-        Cloud-->>Mobile: Stream New Scan to Student Device
-        Mobile->>Mobile: Update CSC 401 Gauge to 90% (🟢 ELIGIBLE)
-        Mobile->>Mobile: Enable "Generate Exam Clearance Docket"
+        Cloud-->>Mobile: Stream New Scan to Student's Personal Device
+        Mobile->>Mobile: Update CSC 401 Compliance Gauge to 90% (🟢 ELIGIBLE)
+        Mobile->>Mobile: Refresh QR Anti-Tamper Clearance Token
     end

@@ -207,7 +207,7 @@ erDiagram
         boolean is_active
     }
 
-    BIOMETRIC_CREDENTIALS {
+        BIOMETRIC_CREDENTIALS {
         int credential_id PK
         int user_id FK
         string credential_type
