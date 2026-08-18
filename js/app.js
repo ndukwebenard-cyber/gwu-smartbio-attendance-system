@@ -46,17 +46,37 @@ class SmartBioApp {
       this.currentUserId = Number(userId);
     }
 
-    // Update Navbar User Profile Chip
+    // Institutional Security Passcodes for RBAC Gatekeeping
+    this.AUTH_PASSCODES = {
+      LECTURER: 'GWU-FACULTY-2026',
+      ADMIN: 'GWU-ADMIN-2026',
+      CLASS_REP: 'GWU-PROCTOR-2026'
+    };
+
+    // Update Navbar User Profile Chip & Role Badge
     const currentUser = this.currentUserId ? window.smartBioData.getUserById(this.currentUserId) : null;
     const navAvatar = document.getElementById('navAuthAvatar');
     const navName = document.getElementById('navAuthName');
+    const navRoleBadge = document.getElementById('navAuthRoleBadge');
+    
     if (currentUser) {
       if (navAvatar) navAvatar.innerText = currentUser.avatar || '👤';
       if (navName) navName.innerText = currentUser.fullName.split(' ')[0] || currentUser.fullName;
+      if (navRoleBadge) {
+        navRoleBadge.innerText = currentUser.role || role;
+        navRoleBadge.className = `badge ${currentUser.role === 'ADMIN' ? 'badge-flagged' : (currentUser.role === 'LECTURER' ? 'badge-eligible' : 'badge-at-risk')}`;
+      }
     } else if (role === 'SCANNER') {
       if (navAvatar) navAvatar.innerText = '🖲️';
       if (navName) navName.innerText = 'Kiosk Terminal';
+      if (navRoleBadge) {
+        navRoleBadge.innerText = 'KIOSK';
+        navRoleBadge.className = 'badge badge-eligible';
+      }
     }
+
+    // Enforce Route Guards: Dynamic Navbar Tabs Lockdown based on Authenticated Role
+    this.updateNavbarRouteGuards(currentUser ? currentUser.role : role);
 
     // Update Navbar active pill
     document.querySelectorAll('.role-pill').forEach(pill => {
@@ -91,7 +111,89 @@ class SmartBioApp {
       this.renderScannerTerminal();
     }
 
-    this.showToast(`Switched to ${role} Portal`, 'info');
+    this.showToast(`Active Perspective: ${role} Portal`, 'info');
+  }
+
+  // Route Guard: Locks down navigation tabs based on least-privilege RBAC
+  updateNavbarRouteGuards(userRole) {
+    const pillAdmin = document.getElementById('pillAdmin');
+    const pillLecturer = document.getElementById('pillLecturer');
+    const pillClassRep = document.getElementById('pillClassRep');
+    const pillStudent = document.getElementById('pillStudent');
+    const pillScanner = document.getElementById('pillScanner');
+
+    if (userRole === 'STUDENT') {
+      if (pillAdmin) pillAdmin.style.display = 'none';
+      if (pillLecturer) pillLecturer.style.display = 'none';
+      if (pillClassRep) pillClassRep.style.display = 'none';
+      if (pillStudent) pillStudent.style.display = 'inline-flex';
+      if (pillScanner) pillScanner.style.display = 'none';
+    } else if (userRole === 'CLASS_REP') {
+      if (pillAdmin) pillAdmin.style.display = 'none';
+      if (pillLecturer) pillLecturer.style.display = 'none';
+      if (pillClassRep) pillClassRep.style.display = 'inline-flex';
+      if (pillStudent) pillStudent.style.display = 'inline-flex';
+      if (pillScanner) pillScanner.style.display = 'inline-flex';
+    } else if (userRole === 'LECTURER') {
+      if (pillAdmin) pillAdmin.style.display = 'none';
+      if (pillLecturer) pillLecturer.style.display = 'inline-flex';
+      if (pillClassRep) pillClassRep.style.display = 'none';
+      if (pillStudent) pillStudent.style.display = 'none';
+      if (pillScanner) pillScanner.style.display = 'inline-flex';
+    } else if (userRole === 'ADMIN') {
+      // Administrator has global oversight over all portals for testing & auditing
+      if (pillAdmin) pillAdmin.style.display = 'inline-flex';
+      if (pillLecturer) pillLecturer.style.display = 'inline-flex';
+      if (pillClassRep) pillClassRep.style.display = 'inline-flex';
+      if (pillStudent) pillStudent.style.display = 'inline-flex';
+      if (pillScanner) pillScanner.style.display = 'inline-flex';
+    }
+  }
+
+  handleSignOut() {
+    this.showToast('Signing out of session...', 'info');
+    window.smartBioAudio.playLaserChirp();
+    
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.auth) {
+      try {
+        window.smartBioCloud.auth.signOut();
+      } catch (e) {}
+    }
+
+    this.currentUserId = null;
+    this.openAuthModal('LOGIN');
+    this.showToast('Session ended. Select a role profile or log in.', 'info');
+  }
+
+  handleRegRoleChange() {
+    const role = document.getElementById('regRoleSelect').value;
+    const passcodeGroup = document.getElementById('regPasscodeGroup');
+    const passcodeLabel = document.getElementById('regPasscodeLabel');
+    const passcodeInput = document.getElementById('regPasscodeInput');
+
+    if (!passcodeGroup) return;
+
+    if (role === 'STUDENT') {
+      passcodeGroup.style.display = 'none';
+      if (passcodeInput) passcodeInput.required = false;
+    } else {
+      passcodeGroup.style.display = 'block';
+      if (passcodeInput) {
+        passcodeInput.required = true;
+        passcodeInput.value = '';
+      }
+
+      if (role === 'LECTURER') {
+        passcodeLabel.innerText = '🔐 Institutional Faculty Authorization Key Required';
+        passcodeInput.placeholder = 'e.g. GWU-FACULTY-2026';
+      } else if (role === 'CLASS_REP') {
+        passcodeLabel.innerText = '🔐 Course Proctor Authorization Key Required';
+        passcodeInput.placeholder = 'e.g. GWU-PROCTOR-2026';
+      } else if (role === 'ADMIN') {
+        passcodeLabel.innerText = '🔐 Master Administrator Security Key Required';
+        passcodeInput.placeholder = 'e.g. GWU-ADMIN-2026';
+      }
+    }
   }
 
   bindNavbarEvents() {
@@ -215,10 +317,24 @@ class SmartBioApp {
     const academicLevel = document.getElementById('regLevel').value;
     const password = document.getElementById('regPassword').value;
     const confirmPassword = document.getElementById('regConfirmPassword').value;
+    const passcodeInput = document.getElementById('regPasscodeInput');
 
     if (password !== confirmPassword) {
       this.showToast('Passwords do not match. Please re-enter.', 'error');
       return;
+    }
+
+    // RBAC GATEKEEPING: Verify Institutional Security Passcode for privileged roles
+    if (role !== 'STUDENT') {
+      const enteredPasscode = passcodeInput ? passcodeInput.value.trim() : '';
+      const requiredPasscode = this.AUTH_PASSCODES[role];
+
+      if (enteredPasscode !== requiredPasscode) {
+        window.smartBioAudio.playFlaggedWarning();
+        alert(`⛔ Unauthorized Role Access!\n\nTo register as a ${role}, you must provide the confidential Institutional Authorization Passcode.\n\n(Demo Passcode for ${role}: ${requiredPasscode})`);
+        this.showToast(`Access Denied: Invalid passcode for ${role}`, 'error');
+        return;
+      }
     }
 
     // 1. Create account in Firebase Auth if cloud is connected
@@ -272,7 +388,7 @@ class SmartBioApp {
     this.closeAuthModal();
 
     window.smartBioAudio.playSuccessChime();
-    this.showToast(`Account successfully registered! Logged in as ${fullName}.`, 'success');
+    this.showToast(`Account successfully registered! Logged in as ${fullName} (${role}).`, 'success');
   }
 
     this.currentUserId = newUserId;

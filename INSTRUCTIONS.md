@@ -21,10 +21,13 @@ Before altering any code or database structure, verify that your proposed change
   - Only store cryptographic SHA-256 minutiae hashes, WebAuthn public keys, or standard feature descriptors.
   - Every manual flag override and attendance credit **MUST** produce an immutable audit log entry.
 
-- [ ] **3. Strict Separation of Duties (RBAC Invariant)**:
+- [ ] **3. Strict Separation of Duties & RBAC Gatekeeping Invariant**:
+  - **Student Self-Enrollment**: Open to students registering with institutional matric numbers. Enforces strict Route Guard locking them exclusively to the Student Portal.
+  - **Privileged Role Gatekeeping**: Registering as `LECTURER`, `CLASS_REP`, or `ADMIN` mandates verification of confidential institutional security passcodes (`GWU-FACULTY-2026`, `GWU-PROCTOR-2026`, `GWU-ADMIN-2026`).
   - **Class Representatives**: Proctor privileges only (kiosk launch, live headcount monitoring, defaulter notice broadcast).
   - **Class Representatives MUST NEVER** be granted permission to override/approve biometric flags or manually mark peers present.
   - Only **Lecturers** and **System Administrators** hold flag override authority with mandatory audit notes.
+  - **Navbar Route Guards**: Active navbar tabs dynamically lock down based on the authenticated role. Switching accounts is done via the dedicated `🚪 Switch User` action.
 
 - [ ] **4. GitHub Pages Zero-Build Compatibility Invariant**:
   - The application must run directly from GitHub Pages as a high-performance Single-Page Application (SPA) without requiring Node.js, Webpack, Vite build pipelines, or backend server runtimes.

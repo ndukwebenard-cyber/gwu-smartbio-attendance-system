@@ -63,7 +63,10 @@
         <span>💡</span> Tour
       </button>
       <button class="btn btn-primary btn-sm" id="btnNavAuth" title="User Authentication & Profile">
-        <span id="navAuthAvatar">👨‍🏫</span> <span id="navAuthName">Dr. Adeyemi</span>
+        <span id="navAuthAvatar">👨‍🏫</span> <span id="navAuthName">Dr. Adeyemi</span> <span class="badge badge-eligible" id="navAuthRoleBadge" style="font-size: 0.65rem; padding: 2px 6px;">LECTURER</span>
+      </button>
+      <button class="btn btn-secondary btn-sm" id="btnNavSignOut" onclick="smartBioApp.handleSignOut()" title="Sign Out / Switch Perspective" style="min-height: 36px; padding: 6px 10px;">
+        <span>🚪</span> Switch User
       </button>
     </div>
   </header>
@@ -845,12 +848,23 @@
             <!-- Expected Role Access Dropdown -->
             <div class="form-group">
               <label class="form-label" for="regRoleSelect">Assigned Role Access</label>
-              <select class="form-control font-bold" id="regRoleSelect" required>
-                <option value="STUDENT">🎓 Student</option>
-                <option value="CLASS_REP">👥 Class Representative (Proctor)</option>
-                <option value="LECTURER">👨‍🏫 Course Lecturer / Faculty</option>
-                <option value="ADMIN">👨‍💼 System Administrator</option>
+              <select class="form-control font-bold" id="regRoleSelect" onchange="smartBioApp.handleRegRoleChange()" required>
+                <option value="STUDENT">🎓 Student (Open Enrollment)</option>
+                <option value="CLASS_REP">👥 Class Representative (Requires Proctor Key)</option>
+                <option value="LECTURER">👨‍🏫 Course Lecturer (Requires Faculty Key)</option>
+                <option value="ADMIN">👨‍💼 System Administrator (Requires Master Admin Key)</option>
               </select>
+            </div>
+
+            <!-- Gatekeeping Authorization Key (Dynamically shown for privileged roles) -->
+            <div class="form-group" id="regPasscodeGroup" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px dashed var(--warning); border-radius: var(--radius-sm); padding: 12px;">
+              <label class="form-label" id="regPasscodeLabel" for="regPasscodeInput" style="color: var(--warning); font-weight: 700;">
+                🔐 Institutional Faculty Passcode Required
+              </label>
+              <input type="password" class="form-control font-mono" id="regPasscodeInput" placeholder="e.g. GWU-FACULTY-2026">
+              <span id="regPasscodeHelp" style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 4px;">
+                Demo Passcodes: Lecturer: <code style="color: var(--primary);">GWU-FACULTY-2026</code> • Class Rep: <code style="color: var(--primary);">GWU-PROCTOR-2026</code> • Admin: <code style="color: var(--primary);">GWU-ADMIN-2026</code>
+              </span>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
