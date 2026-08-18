@@ -18,6 +18,7 @@ class SmartBioApp {
     window.smartBioCloud.initializeFirebase();
 
     this.bindNavbarEvents();
+    this.bindAuthEvents();
     this.bindLecturerEvents();
     this.bindClassRepEvents();
     this.bindStudentEvents();
@@ -43,6 +44,18 @@ class SmartBioApp {
       else if (role === 'SCANNER') this.currentUserId = null;
     } else {
       this.currentUserId = Number(userId);
+    }
+
+    // Update Navbar User Profile Chip
+    const currentUser = this.currentUserId ? window.smartBioData.getUserById(this.currentUserId) : null;
+    const navAvatar = document.getElementById('navAuthAvatar');
+    const navName = document.getElementById('navAuthName');
+    if (currentUser) {
+      if (navAvatar) navAvatar.innerText = currentUser.avatar || '👤';
+      if (navName) navName.innerText = currentUser.fullName.split(' ')[0] || currentUser.fullName;
+    } else if (role === 'SCANNER') {
+      if (navAvatar) navAvatar.innerText = '🖲️';
+      if (navName) navName.innerText = 'Kiosk Terminal';
     }
 
     // Update Navbar active pill
@@ -94,6 +107,172 @@ class SmartBioApp {
     if (btnSync) {
       btnSync.addEventListener('click', () => this.openCloudModal());
     }
+
+    // Auth Button in Top Bar
+    const btnAuth = document.getElementById('btnNavAuth');
+    if (btnAuth) {
+      btnAuth.addEventListener('click', () => this.openAuthModal('LOGIN'));
+    }
+  }
+
+  // =========================================================================
+  // 1b. AUTHENTICATION & ACCESS CONTROL METHODS
+  // =========================================================================
+  bindAuthEvents() {
+    // Escape key to close auth modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closeAuthModal();
+    });
+  }
+
+  openAuthModal(view = 'LOGIN') {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+      modal.classList.add('active');
+      this.switchAuthView(view);
+    }
+  }
+
+  closeAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  switchAuthView(viewName) {
+    const signInView = document.getElementById('authSignInView');
+    const registerView = document.getElementById('authRegisterView');
+    const resetView = document.getElementById('authResetView');
+
+    if (signInView) signInView.style.display = viewName === 'LOGIN' ? 'block' : 'none';
+    if (registerView) registerView.style.display = viewName === 'REGISTER' ? 'block' : 'none';
+    if (resetView) resetView.style.display = viewName === 'RESET' ? 'block' : 'none';
+  }
+
+  fillDemoAuth(role) {
+    const roleSelect = document.getElementById('loginRoleSelect');
+    const emailInput = document.getElementById('loginEmailInput');
+    const passwordInput = document.getElementById('loginPasswordInput');
+
+    if (roleSelect) roleSelect.value = role;
+    if (passwordInput) passwordInput.value = 'password123';
+
+    if (role === 'LECTURER' && emailInput) {
+      emailInput.value = 'o.adeyemi@smartbio.edu.ng';
+    } else if (role === 'CLASS_REP' && emailInput) {
+      emailInput.value = 'c.eze@student.gwu.edu';
+    } else if (role === 'STUDENT' && emailInput) {
+      emailInput.value = 'b.uche@student.gwu.edu';
+    } else if (role === 'ADMIN' && emailInput) {
+      emailInput.value = 'admin@smartbio.edu.ng';
+    }
+
+    this.showToast(`Auto-filled demo credentials for ${role}`, 'info');
+  }
+
+  handleSignIn(e) {
+    e.preventDefault();
+    const role = document.getElementById('loginRoleSelect').value;
+    const identifier = document.getElementById('loginEmailInput').value.trim();
+
+    // Find matching user in data store
+    const users = window.smartBioData.getUsers();
+    let user = users.find(u => 
+      u.email.toLowerCase() === identifier.toLowerCase() || 
+      u.identifier.toLowerCase() === identifier.toLowerCase()
+    );
+
+    if (!user) {
+      // Fallback by role for instant access
+      user = users.find(u => u.role === role) || users[0];
+    }
+
+    this.currentUserId = user.id;
+    this.switchRole(role, user.id);
+    this.closeAuthModal();
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`Welcome back, ${user.fullName}! Authenticated as ${role}.`, 'success');
+  }
+
+  handleSignUp(e) {
+    e.preventDefault();
+    const fullName = document.getElementById('regFullName').value.trim();
+    const matricNo = document.getElementById('regMatricNo').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const role = document.getElementById('regRoleSelect').value;
+    const departmentId = Number(document.getElementById('regDepartment').value);
+    const academicLevel = document.getElementById('regLevel').value;
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+
+    if (password !== confirmPassword) {
+      this.showToast('Passwords do not match. Please re-enter.', 'error');
+      return;
+    }
+
+    const data = window.smartBioData.load();
+    const newUserId = data.users.length ? Math.max(...data.users.map(u => u.id)) + 1 : 1;
+
+    let avatar = '🧑‍🎓';
+    if (role === 'LECTURER') avatar = '👨‍🏫';
+    if (role === 'ADMIN') avatar = '👨‍💼';
+    if (role === 'CLASS_REP') avatar = '👥';
+
+    const newUser = {
+      id: newUserId,
+      identifier: matricNo,
+      fullName: fullName,
+      email: email,
+      role: role,
+      departmentId: departmentId,
+      academicLevel: academicLevel === 'Faculty' ? null : Number(academicLevel),
+      avatar: avatar,
+      hasBiometrics: true,
+      fingerTemplate: `SHA256:${Date.now().toString(16)}07b81`
+    };
+
+    data.users.push(newUser);
+    window.smartBioData.save(data);
+
+    this.currentUserId = newUserId;
+    this.switchRole(role, newUserId);
+    this.closeAuthModal();
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`Account successfully registered! Logged in as ${fullName}.`, 'success');
+  }
+
+  handleResetPassword(e) {
+    e.preventDefault();
+    const email = document.getElementById('resetEmailInput').value.trim();
+    const role = document.getElementById('resetRoleSelect').value;
+
+    this.showToast(`Password reset link dispatched to ${email} (${role})!`, 'success');
+    this.switchAuthView('LOGIN');
+  }
+
+  async handleBiometricPasskeyLogin() {
+    const role = document.getElementById('loginRoleSelect').value;
+    try {
+      this.showToast('Initiating WebAuthn FIDO2 Biometric Hardware Prompt...', 'info');
+      if (window.smartBioBiometrics) {
+        const authResult = await window.smartBioBiometrics.authenticateWithWebAuthn();
+        if (authResult) {
+          const user = window.smartBioData.getUsers().find(u => u.role === role) || window.smartBioData.getUsers()[0];
+          this.currentUserId = user.id;
+          this.switchRole(role, user.id);
+          this.closeAuthModal();
+          window.smartBioAudio.playSuccessChime();
+          this.showToast(`Hardware WebAuthn Biometric Verified! Welcome ${user.fullName}.`, 'success');
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('WebAuthn hardware bypassed/simulated:', err);
+    }
+    // Fallback authentication
+    this.fillDemoAuth(role);
+    this.handleSignIn({ preventDefault: () => {} });
   }
 
   // 2. Global Event Listeners (Syncs across all views)

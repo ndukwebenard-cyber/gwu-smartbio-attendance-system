@@ -48,14 +48,17 @@
       </button>
     </nav>
 
-    <!-- Cloud Sync & Tour Actions -->
+    <!-- Cloud Sync, Tour & Auth Actions -->
     <div class="nav-actions">
       <button class="btn-sync" id="btnCloudSyncSettings" title="Cloud Firestore Multi-Device Sync">
         <span class="sync-dot offline" id="cloudSyncDot"></span>
-        <span id="cloudStatusText">Local Database Mode</span>
+        <span id="cloudStatusText">Local Mode</span>
       </button>
       <button class="btn btn-secondary btn-sm" id="btnRestartTour" title="Open Interactive Tour">
         <span>💡</span> Tour
+      </button>
+      <button class="btn btn-primary btn-sm" id="btnNavAuth" title="User Authentication & Profile">
+        <span id="navAuthAvatar">👨‍🏫</span> <span id="navAuthName">Dr. Adeyemi</span>
       </button>
     </div>
   </header>
@@ -750,34 +753,203 @@
     </div>
   </div>
 
-  <!-- Firebase Cloud Sync Modal -->
-  <div class="modal-overlay" id="cloudConfigModal">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>☁️ Cloud Firestore Multi-Device Sync</h3>
-        <button class="modal-close" id="btnCloseCloudModal">×</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-          Connect your free Firebase Firestore database to enable real-time multi-device synchronization across laptops, phones, and kiosk tablets.
-        </p>
-        <div class="form-group">
-          <label class="form-label">Firebase API Key</label>
-          <input type="text" class="form-control font-mono" id="fbApiKey" placeholder="AIzaSy...">
+  <!-- =========================================================================
+       AUTHENTICATION MODAL (Sign In / Sign Up / Reset Password + Role Access)
+       ========================================================================= -->
+  <div class="modal-overlay" id="authModal">
+    <div class="modal-dialog" style="max-width: 540px;">
+      
+      <!-- 1. SIGN IN VIEW -->
+      <div class="auth-subview active" id="authSignInView">
+        <div class="modal-header">
+          <div>
+            <span class="hero-tag" style="margin-bottom: 4px;">🔐 Secure Institutional Access</span>
+            <h3 style="margin-bottom: 0;">Sign In to SmartBio</h3>
+          </div>
+          <button class="modal-close" onclick="smartBioApp.closeAuthModal()">×</button>
         </div>
-        <div class="form-group">
-          <label class="form-label">Project ID</label>
-          <input type="text" class="form-control font-mono" id="fbProjectId" placeholder="smartbio-university-demo">
+        <div class="modal-body">
+          <form id="formSignIn" onsubmit="smartBioApp.handleSignIn(event)">
+            <!-- Expected Role Access Dropdown -->
+            <div class="form-group">
+              <label class="form-label" for="loginRoleSelect">Expected Role Access</label>
+              <select class="form-control font-bold" id="loginRoleSelect" required>
+                <option value="LECTURER">👨‍🏫 Course Lecturer (Dr. Adeyemi)</option>
+                <option value="STUDENT">🎓 Student (Benedict Uche)</option>
+                <option value="CLASS_REP">👥 Class Representative (Chukwudi Eze)</option>
+                <option value="ADMIN">👨‍💼 System Administrator (Dr. Balogun)</option>
+              </select>
+            </div>
+
+            <!-- Email / Matric Input -->
+            <div class="form-group">
+              <label class="form-label" for="loginEmailInput">Institutional Email / Matriculation No</label>
+              <input type="text" class="form-control" id="loginEmailInput" value="o.adeyemi@smartbio.edu.ng" placeholder="e.g. b.uche@student.gwu.edu or GWU/CSC/22/001" required>
+            </div>
+
+            <!-- Password Input -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <label class="form-label" for="loginPasswordInput" style="margin-bottom: 0;">Password</label>
+                <a href="javascript:void(0)" onclick="smartBioApp.switchAuthView('RESET')" style="font-size: 0.76rem; color: var(--primary); text-decoration: none;">Forgot Password?</a>
+              </div>
+              <input type="password" class="form-control" id="loginPasswordInput" value="••••••••" placeholder="Enter your password" required>
+            </div>
+
+            <!-- 1-Click Defense Quick-Fill Sandbox -->
+            <div style="background: rgba(255,255,255,0.03); border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 16px;">
+              <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">⚡ 1-Click Defense Demo Profiles:</span>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('LECTURER')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">👨‍🏫 Lecturer</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('CLASS_REP')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">👥 Class Rep</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('STUDENT')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">🎓 Student</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('ADMIN')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">👨‍💼 Admin</button>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">
+              Sign In to Dashboard →
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="smartBioApp.handleBiometricPasskeyLogin()" style="width: 100%;">
+              <span>👆</span> Sign In with Biometric Hardware (WebAuthn)
+            </button>
+          </form>
         </div>
-        <div class="form-group">
-          <label class="form-label">App ID</label>
-          <input type="text" class="form-control font-mono" id="fbAppId" placeholder="1:123456789:web:abcdef">
+        <div class="modal-footer" style="justify-content: center;">
+          <span style="font-size: 0.82rem; color: var(--text-muted);">
+            Don't have an account? 
+            <a href="javascript:void(0)" onclick="smartBioApp.switchAuthView('REGISTER')" style="color: var(--primary); font-weight: 700; text-decoration: none;">Register / Sign Up</a>
+          </span>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="smartBioApp.closeCloudModal()">Cancel</button>
-        <button class="btn btn-primary" id="btnSaveFirebaseConfig">Save & Connect</button>
+
+      <!-- 2. SIGN UP / REGISTRATION VIEW -->
+      <div class="auth-subview" id="authRegisterView" style="display: none;">
+        <div class="modal-header">
+          <div>
+            <span class="hero-tag" style="margin-bottom: 4px;">📝 New User Registration</span>
+            <h3 style="margin-bottom: 0;">Create SmartBio Account</h3>
+          </div>
+          <button class="modal-close" onclick="smartBioApp.closeAuthModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <form id="formSignUp" onsubmit="smartBioApp.handleSignUp(event)">
+            <!-- Expected Role Access Dropdown -->
+            <div class="form-group">
+              <label class="form-label" for="regRoleSelect">Assigned Role Access</label>
+              <select class="form-control font-bold" id="regRoleSelect" required>
+                <option value="STUDENT">🎓 Student</option>
+                <option value="CLASS_REP">👥 Class Representative (Proctor)</option>
+                <option value="LECTURER">👨‍🏫 Course Lecturer / Faculty</option>
+                <option value="ADMIN">👨‍💼 System Administrator</option>
+              </select>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" for="regFullName">Full Legal Name</label>
+                <input type="text" class="form-control" id="regFullName" placeholder="e.g. Benedict Uche" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="regMatricNo">Matric No / Staff ID</label>
+                <input type="text" class="form-control font-mono" id="regMatricNo" placeholder="GWU/CSC/22/..." required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="regEmail">Institutional Email Address</label>
+              <input type="email" class="form-control" id="regEmail" placeholder="student@gwu.edu or staff@smartbio.edu.ng" required>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" for="regDepartment">Academic Department</label>
+                <select class="form-control" id="regDepartment" required>
+                  <option value="1">Computer Science & Software Eng.</option>
+                  <option value="2">Cyber Security Science</option>
+                  <option value="3">Information Technology</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="regLevel">Academic Level</label>
+                <select class="form-control" id="regLevel">
+                  <option value="400">400 Level (Final Year)</option>
+                  <option value="300">300 Level</option>
+                  <option value="200">200 Level</option>
+                  <option value="100">100 Level</option>
+                  <option value="Faculty">Faculty Staff / Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" for="regPassword">Create Password</label>
+                <input type="password" class="form-control" id="regPassword" placeholder="Minimum 6 characters" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="regConfirmPassword">Confirm Password</label>
+                <input type="password" class="form-control" id="regConfirmPassword" placeholder="Repeat password" required>
+              </div>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+              <input type="checkbox" id="regEnrollBiometrics" checked style="width: 18px; height: 18px; accent-color: var(--primary);">
+              <label for="regEnrollBiometrics" style="font-size: 0.8rem; color: var(--text-muted); cursor: pointer;">
+                Enroll hardware WebAuthn fingerprint on first sign-in (NDPA 2023 Compliant)
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-success" style="width: 100%;">
+              ✓ Complete Registration
+            </button>
+          </form>
+        </div>
+        <div class="modal-footer" style="justify-content: center;">
+          <span style="font-size: 0.82rem; color: var(--text-muted);">
+            Already have an account? 
+            <a href="javascript:void(0)" onclick="smartBioApp.switchAuthView('LOGIN')" style="color: var(--primary); font-weight: 700; text-decoration: none;">Sign In</a>
+          </span>
+        </div>
       </div>
+
+      <!-- 3. RESET PASSWORD VIEW -->
+      <div class="auth-subview" id="authResetView" style="display: none;">
+        <div class="modal-header">
+          <div>
+            <span class="hero-tag" style="margin-bottom: 4px;">🔑 Password Recovery</span>
+            <h3 style="margin-bottom: 0;">Reset Account Password</h3>
+          </div>
+          <button class="modal-close" onclick="smartBioApp.closeAuthModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 18px;">
+            Enter your registered university email address or matriculation number. A secure password reset token will be dispatched.
+          </p>
+          <form id="formResetPassword" onsubmit="smartBioApp.handleResetPassword(event)">
+            <div class="form-group">
+              <label class="form-label" for="resetEmailInput">Institutional Email / Matriculation No</label>
+              <input type="text" class="form-control" id="resetEmailInput" placeholder="e.g. b.uche@student.gwu.edu" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="resetRoleSelect">Account Role</label>
+              <select class="form-control" id="resetRoleSelect" required>
+                <option value="STUDENT">Student</option>
+                <option value="CLASS_REP">Class Representative</option>
+                <option value="LECTURER">Course Lecturer</option>
+                <option value="ADMIN">Administrator</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">
+              Send Password Reset Link →
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="smartBioApp.switchAuthView('LOGIN')" style="width: 100%;">
+              ← Back to Sign In
+            </button>
+          </form>
+        </div>
+      </div>
+
     </div>
   </div>
 
