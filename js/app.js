@@ -750,7 +750,8 @@ class SmartBioApp {
       }
     } catch (e) {
       console.error(e);
-      this.showToast('Cloud seeding failed. Check Firebase console connection.', 'error');
+      alert(`Cloud Seeding Notice:\n${e.message}`);
+      this.showToast(e.message, 'error');
     }
   }
 

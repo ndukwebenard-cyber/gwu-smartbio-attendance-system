@@ -42,6 +42,26 @@ class CloudSyncEngine {
     this.initializeFirebase();
   }
 
+  async ensureFirebaseSDK() {
+    if (window.firebase && window.firebase.firestore && window.firebase.auth) {
+      return true;
+    }
+
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (window.firebase && window.firebase.firestore && window.firebase.auth) {
+          clearInterval(interval);
+          resolve(true);
+        } else if (attempts > 30) { // 3 seconds timeout
+          clearInterval(interval);
+          resolve(false);
+        }
+      }, 100);
+    });
+  }
+
   async initializeFirebase() {
     if (!this.config || !this.config.apiKey || !this.config.projectId) {
       this.isConnected = false;
@@ -50,12 +70,9 @@ class CloudSyncEngine {
     }
 
     try {
-      // Dynamic load of Firebase Web SDK if not already loaded
-      if (!window.firebase) {
-        await this.loadFirebaseSDK();
-      }
+      const sdkReady = await this.ensureFirebaseSDK();
 
-      if (window.firebase) {
+      if (window.firebase && window.firebase.firestore) {
         if (!firebase.apps.length) {
           firebase.initializeApp(this.config);
         }
@@ -64,87 +81,53 @@ class CloudSyncEngine {
         this.isConnected = true;
         this.updateSyncUI('LIVE CLOUD (FIREBASE)');
         this.setupRealtimeListeners();
-        console.log('⚡ Firebase Cloud Firestore Connected successfully to gwu-smartbio-attendance-system');
+        console.log('⚡ Firebase Cloud Firestore connected to', this.config.projectId);
         return true;
+      } else {
+        console.warn('Firebase SDK not yet loaded or offline');
+        this.isConnected = false;
+        this.updateSyncUI('OFFLINE / LOCAL MODE');
+        return false;
       }
     } catch (e) {
       console.error('Firebase initialization error:', e);
       this.isConnected = false;
-      this.updateSyncUI('CLOUD ERROR (USING LOCAL)');
+      this.updateSyncUI('OFFLINE / LOCAL MODE');
       return false;
     }
-  }
-
-  loadFirebaseSDK() {
-    return new Promise((resolve, reject) => {
-      const scriptApp = document.createElement('script');
-      scriptApp.src = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js';
-      scriptApp.onload = () => {
-        const scriptAuth = document.createElement('script');
-        scriptAuth.src = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js';
-        
-        const scriptFirestore = document.createElement('script');
-        scriptFirestore.src = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js';
-
-        let loaded = 0;
-        const checkDone = () => {
-          loaded++;
-          if (loaded === 2) resolve(true);
-        };
-
-        scriptAuth.onload = checkDone;
-        scriptFirestore.onload = checkDone;
-        scriptAuth.onerror = reject;
-        scriptFirestore.onerror = reject;
-
-        document.head.appendChild(scriptAuth);
-        document.head.appendChild(scriptFirestore);
-      };
-      scriptApp.onerror = reject;
-      document.head.appendChild(scriptApp);
-    });
   }
 
   setupRealtimeListeners() {
     if (!this.db) return;
 
-    // 1. Real-time Attendance Stream (Prepend live scans across all devices)
-    this.db.collection('attendance_records')
-      .orderBy('timestamp', 'desc')
-      .limit(30)
-      .onSnapshot((snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const record = change.doc.data();
-            window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: record }));
-          }
+    try {
+      // 1. Real-time Attendance Stream
+      this.db.collection('attendance_records')
+        .orderBy('timestamp', 'desc')
+        .limit(30)
+        .onSnapshot((snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const record = change.doc.data();
+              window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: record }));
+            }
+          });
+        }, (error) => {
+          console.warn('Firestore attendance listener notice:', error.message);
         });
-      }, (error) => {
-        console.warn('Firestore attendance listener:', error);
-      });
 
-    // 2. Real-time Flagged Exceptions Queue
-    this.db.collection('flagged_exceptions')
-      .onSnapshot((snapshot) => {
-        const flags = [];
-        snapshot.forEach(doc => flags.push({ id: doc.id, ...doc.data() }));
-        window.dispatchEvent(new CustomEvent('smartbio:flagged_update', { detail: flags }));
-      }, (error) => {
-        console.warn('Firestore flagged queue listener:', error);
-      });
-
-    // 3. Real-time Active Lecture Sessions
-    this.db.collection('lecture_sessions')
-      .where('status', '==', 'ACTIVE')
-      .limit(1)
-      .onSnapshot((snapshot) => {
-        snapshot.forEach(doc => {
-          const session = { id: doc.id, ...doc.data() };
-          window.dispatchEvent(new CustomEvent('smartbio:session_active', { detail: session }));
+      // 2. Real-time Flagged Exceptions Queue
+      this.db.collection('flagged_exceptions')
+        .onSnapshot((snapshot) => {
+          const flags = [];
+          snapshot.forEach(doc => flags.push({ id: doc.id, ...doc.data() }));
+          window.dispatchEvent(new CustomEvent('smartbio:flagged_update', { detail: flags }));
+        }, (error) => {
+          console.warn('Firestore flagged listener notice:', error.message);
         });
-      }, (error) => {
-        console.warn('Firestore session listener:', error);
-      });
+    } catch (e) {
+      console.warn('Could not attach Firestore listeners:', e);
+    }
   }
 
   // Push new attendance record to Cloud + Local Store
@@ -160,7 +143,7 @@ class CloudSyncEngine {
           serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
       } catch (e) {
-        console.warn('Failed to sync attendance to cloud:', e);
+        console.warn('Cloud sync skipped (using local):', e.message);
       }
     }
 
@@ -179,7 +162,7 @@ class CloudSyncEngine {
           serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
       } catch (e) {
-        console.warn('Failed to sync flag to cloud:', e);
+        console.warn('Cloud flag sync skipped:', e.message);
       }
     }
 
@@ -204,7 +187,7 @@ class CloudSyncEngine {
           serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
       } catch (e) {
-        console.warn('Failed to resolve cloud flag:', e);
+        console.warn('Cloud flag resolve skipped:', e.message);
       }
     }
 
@@ -217,35 +200,45 @@ class CloudSyncEngine {
     if (!this.isConnected || !this.db) {
       const initialized = await this.initializeFirebase();
       if (!initialized) {
-        alert('Could not connect to Firebase Firestore. Please check your internet connection.');
-        return false;
+        throw new Error('Firebase SDK is initializing or offline. Please ensure Cloud Firestore is enabled in Firebase Console.');
       }
     }
 
-    const data = window.smartBioData.load();
-    const batch = this.db.batch();
+    try {
+      const data = window.smartBioData.load();
+      const batch = this.db.batch();
 
-    // 1. Seed Users
-    data.users.forEach(user => {
-      const ref = this.db.collection('users').doc(String(user.id));
-      batch.set(ref, user);
-    });
+      // 1. Seed Users
+      data.users.forEach(user => {
+        const ref = this.db.collection('users').doc(String(user.id));
+        batch.set(ref, user);
+      });
 
-    // 2. Seed Courses
-    data.courses.forEach(course => {
-      const ref = this.db.collection('courses').doc(String(course.id));
-      batch.set(ref, course);
-    });
+      // 2. Seed Courses
+      data.courses.forEach(course => {
+        const ref = this.db.collection('courses').doc(String(course.id));
+        batch.set(ref, course);
+      });
 
-    // 3. Seed Departments
-    data.departments.forEach(dept => {
-      const ref = this.db.collection('departments').doc(String(dept.id));
-      batch.set(ref, dept);
-    });
+      // 3. Seed Departments
+      data.departments.forEach(dept => {
+        const ref = this.db.collection('departments').doc(String(dept.id));
+        batch.set(ref, dept);
+      });
 
-    await batch.commit();
-    console.log('✅ Google Cloud Firestore populated with university datasets!');
-    return true;
+      await batch.commit();
+      console.log('✅ Google Cloud Firestore populated with university datasets!');
+      return true;
+    } catch (err) {
+      console.error('Firestore Seed Error:', err);
+      if (err.code === 'permission-denied') {
+        throw new Error('Firestore Security Rules Denied: In Firebase Console -> Firestore -> Rules, set: allow read, write: if true;');
+      } else if (err.code === 'not-found' || err.message.includes('NOT_FOUND')) {
+        throw new Error('Firestore Database not created yet. In Firebase Console -> Build -> Firestore Database, click "Create Database".');
+      } else {
+        throw err;
+      }
+    }
   }
 
   updateSyncUI(statusText) {
