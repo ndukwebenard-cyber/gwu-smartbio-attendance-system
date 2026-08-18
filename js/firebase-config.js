@@ -228,6 +228,24 @@ class CloudSyncEngine {
 
       await batch.commit();
       console.log('✅ Google Cloud Firestore populated with university datasets!');
+
+      // 4. Optionally provision corresponding Firebase Auth accounts
+      if (this.auth) {
+        console.log('🔐 Provisioning demo Firebase Auth accounts...');
+        for (const user of data.users) {
+          try {
+            await this.auth.createUserWithEmailAndPassword(user.email, 'password123');
+            console.log(`✓ Created Firebase Auth account for: ${user.email}`);
+          } catch (authErr) {
+            if (authErr.code === 'auth/email-already-in-use') {
+              console.log(`Account ${user.email} already registered in Firebase Auth.`);
+            } else {
+              console.warn(`Auth creation notice for ${user.email}:`, authErr.message);
+            }
+          }
+        }
+      }
+
       return true;
     } catch (err) {
       console.error('Firestore Seed Error:', err);

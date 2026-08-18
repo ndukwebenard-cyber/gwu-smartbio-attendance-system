@@ -169,10 +169,21 @@ class SmartBioApp {
     this.showToast(`Auto-filled demo credentials for ${role}`, 'info');
   }
 
-  handleSignIn(e) {
+  async handleSignIn(e) {
     e.preventDefault();
     const role = document.getElementById('loginRoleSelect').value;
     const identifier = document.getElementById('loginEmailInput').value.trim();
+    const password = document.getElementById('loginPasswordInput').value;
+
+    // Optional Firebase Auth sign-in if connected
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.auth && identifier.includes('@')) {
+      try {
+        await window.smartBioCloud.auth.signInWithEmailAndPassword(identifier, password);
+        console.log('🔐 Authenticated with Firebase Auth:', identifier);
+      } catch (authErr) {
+        console.warn('Firebase Auth sign in notice (proceeding with local DB session):', authErr.message);
+      }
+    }
 
     // Find matching user in data store
     const users = window.smartBioData.getUsers();
@@ -194,7 +205,7 @@ class SmartBioApp {
     this.showToast(`Welcome back, ${user.fullName}! Authenticated as ${role}.`, 'success');
   }
 
-  handleSignUp(e) {
+  async handleSignUp(e) {
     e.preventDefault();
     const fullName = document.getElementById('regFullName').value.trim();
     const matricNo = document.getElementById('regMatricNo').value.trim();
@@ -210,6 +221,19 @@ class SmartBioApp {
       return;
     }
 
+    // 1. Create account in Firebase Auth if cloud is connected
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.auth) {
+      try {
+        await window.smartBioCloud.auth.createUserWithEmailAndPassword(email, password);
+        console.log('🔐 Created user in Firebase Auth:', email);
+      } catch (authErr) {
+        if (authErr.code !== 'auth/email-already-in-use') {
+          console.warn('Firebase Auth creation notice:', authErr.message);
+        }
+      }
+    }
+
+    // 2. Add user to local data repository & cloud Firestore
     const data = window.smartBioData.load();
     const newUserId = data.users.length ? Math.max(...data.users.map(u => u.id)) + 1 : 1;
 
@@ -233,6 +257,23 @@ class SmartBioApp {
 
     data.users.push(newUser);
     window.smartBioData.save(data);
+
+    // If Firestore connected, sync user document
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        await window.smartBioCloud.db.collection('users').doc(String(newUserId)).set(newUser);
+      } catch (err) {
+        console.warn('Cloud user sync notice:', err.message);
+      }
+    }
+
+    this.currentUserId = newUserId;
+    this.switchRole(role, newUserId);
+    this.closeAuthModal();
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`Account successfully registered! Logged in as ${fullName}.`, 'success');
+  }
 
     this.currentUserId = newUserId;
     this.switchRole(role, newUserId);
