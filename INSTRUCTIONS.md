@@ -33,9 +33,17 @@ Before altering any code or database structure, verify that your proposed change
   - The application must run directly from GitHub Pages as a high-performance Single-Page Application (SPA) without requiring Node.js, Webpack, Vite build pipelines, or backend server runtimes.
   - Firebase Web SDK must be loaded modularly or via CDN (`compat/v10`).
 
-- [ ] **5. Mobile-First & Touch Responsiveness Invariant**:
-  - All interactive tap zones (buttons, role pills, platen scanner, modal controls) must satisfy the minimum touch target standard of **$44\text{px} \times 44\text{px}$**.
-  - All views must remain fully functional on mobile viewports ($360\text{px} - 480\text{px}$) without horizontal layout overflow.
+- [ ] **5. Mobile-First & Touch Responsiveness Invariant** _(strict enforcement for ALL screens including Auth)_:
+  - All interactive tap zones (buttons, role pills, platen scanner, modal controls) must satisfy the minimum touch target standard of **44px × 44px** (`--touch-min`).
+  - All views must remain fully functional on mobile viewports (**360px – 480px**) without horizontal layout overflow.
+  - **Modals (Sign In / Sign Up / Reset Password / Docket / Cloud Config)**: Already configured as bottom-sheet on ≤768px. NEVER add `max-width` to `.modal-dialog` via inline styles — use the `#authModal .modal-dialog` CSS rule only.
+  - **Two-column form grids**: ALWAYS use the `.form-row-2col` CSS class. NEVER use raw `style="display: grid; grid-template-columns: 1fr 1fr"` inline — this will overflow on 360px phones and fail mobile review.
+    - `.form-row-2col` renders as single column by default (mobile), and expands to two columns only at `min-width: 540px`.
+  - **Navbar auth chip (`#btnNavAuth`)**: Must show `avatar + first name + role badge` on tablet. On ≤380px, the role badge and button label are hidden — only the emoji icon and avatar remain.
+  - **`🚪 Switch User` button**: On ≤380px, renders as icon-only (`🚪`) to preserve navbar space.
+  - **All `select`, `input`, `textarea` form controls**: Must have `font-size: 1rem` (≥16px) to prevent iOS Safari auto-zoom on focus.
+  - **Auth modal forms**: All `input` and `select` controls already inherit `min-height: var(--touch-min)` from `.form-control`. NEVER override this to less than 44px.
+
 
 - [ ] **6. Academic SQL & Repository Synchrony**:
   - Any entity or field added in `js/data.js` must be simultaneously updated in:

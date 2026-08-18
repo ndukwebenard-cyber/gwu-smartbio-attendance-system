@@ -694,3 +694,46 @@ select.form-control {
     flex: 1;
   }
 }
+
+/* ==========================================================================
+   AUTH FORM HELPERS — Mobile-First responsive two-column grid
+   All auth form grids MUST use .form-row-2col (never raw 1fr 1fr inline)
+   ========================================================================== */
+
+/* Default: single column (mobile-first) */
+.form-row-2col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+/* Two columns only from 540px and above */
+@media (min-width: 540px) {
+  .form-row-2col {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+}
+
+/* Auth modal: ensure dialog max-width is always within viewport */
+#authModal .modal-dialog {
+  max-width: min(540px, 100%);
+}
+
+/* Navbar auth chip role badge — hide on very small screens to preserve space */
+@media (max-width: 380px) {
+  #navAuthRoleBadge {
+    display: none;
+  }
+  #btnNavSignOut span:first-child {
+    /* Keep icon only on 380px and below */
+  }
+  #btnNavSignOut {
+    font-size: 0;       /* hide text */
+    padding: 8px 10px;
+  }
+  #btnNavSignOut span {
+    font-size: 16px;    /* but keep emoji icon */
+  }
+}
+
