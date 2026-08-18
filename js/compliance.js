@@ -33,7 +33,11 @@ class NUCComplianceEngine {
       let statusClass = 'badge-eligible';
       let badgeLabel = 'ELIGIBLE (CLEARED)';
 
-      if (percentage < 70) {
+      if (totalHeld === 0) {
+        status = 'PENDING';
+        statusClass = 'badge-at-risk';
+        badgeLabel = 'NOT STARTED (0 HELD)';
+      } else if (percentage < 70) {
         status = 'INELIGIBLE';
         statusClass = 'badge-ineligible';
         badgeLabel = 'BARRED (DEFAULTER)';
@@ -45,7 +49,7 @@ class NUCComplianceEngine {
 
       // Calculate how many more classes needed to reach 75%
       let classesNeeded = 0;
-      if (percentage < 75) {
+      if (totalHeld > 0 && percentage < 75) {
         // formula: (attended + x) / (totalHeld + x) >= 0.75 => x >= (0.75*totalHeld - attended)/0.25
         classesNeeded = Math.max(0, Math.ceil((0.75 * totalHeld - attended) / 0.25));
       }
@@ -54,7 +58,7 @@ class NUCComplianceEngine {
         course,
         totalHeld,
         attended,
-        percentage,
+        percentage: totalHeld === 0 ? 0 : percentage,
         status,
         statusClass,
         badgeLabel,

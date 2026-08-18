@@ -599,6 +599,19 @@ select.form-control {
 .font-mono    { font-family: var(--font-mono); }
 .hidden       { display: none !important; }
 
+/* Mobile-First Table Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 12px;
+}
+
+.table-responsive table {
+  width: 100%;
+  min-width: 520px;
+}
+
 /* ==========================================================================
    RESPONSIVE LAYOUT BREAKPOINTS
    ========================================================================== */

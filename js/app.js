@@ -419,9 +419,9 @@ class SmartBioApp {
     try {
       this.showToast('Initiating WebAuthn FIDO2 Biometric Hardware Prompt...', 'info');
       if (window.smartBioBiometrics) {
-        const authResult = await window.smartBioBiometrics.authenticateWithWebAuthn();
+        const user = window.smartBioData.getUsers().find(u => u.role === role) || window.smartBioData.getUsers()[0];
+        const authResult = await window.smartBioBiometrics.authenticateWithWebAuthn(user);
         if (authResult) {
-          const user = window.smartBioData.getUsers().find(u => u.role === role) || window.smartBioData.getUsers()[0];
           this.currentUserId = user.id;
           this.switchRole(role, user.id);
           this.closeAuthModal();
@@ -431,14 +431,15 @@ class SmartBioApp {
         }
       }
     } catch (err) {
-      console.warn('WebAuthn hardware bypassed/simulated:', err);
+      console.warn('WebAuthn hardware prompt unavailable on this client:', err.message);
+      this.showToast('No physical biometric sensor detected. Continuing with simulated biometric credentials.', 'warning');
     }
     // Fallback authentication
     this.fillDemoAuth(role);
     this.handleSignIn({ preventDefault: () => {} });
   }
 
-  // 2. Global Event Listeners (Syncs across all views)
+  // 2. Global Event Listeners (Syncs across all views & devices)
   listenToGlobalEvents() {
     // When a scan happens anywhere (terminal, phone, or test)
     window.addEventListener('smartbio:attendance_stream', (e) => {
@@ -450,9 +451,32 @@ class SmartBioApp {
       this.renderFlaggedQueue();
       if (this.currentRole === 'ADMIN') this.renderAdminPortal();
     });
+
+    // When active lecture session state changes in Firestore Cloud
+    window.addEventListener('smartbio:session_update', (e) => {
+      const sessionData = e.detail;
+      const banner = document.getElementById('liveSessionActiveBanner');
+      const formBox = document.getElementById('lectureSessionConfigBox');
+      const titleEl = document.getElementById('activeSessionTitle');
+      const venueEl = document.getElementById('activeSessionVenue');
+
+      if (sessionData && sessionData.status === 'ACTIVE') {
+        this.activeLectureSession = sessionData;
+        if (banner) banner.classList.remove('hidden');
+        if (formBox) formBox.classList.add('hidden');
+        if (titleEl) titleEl.innerText = sessionData.topic || 'Active Lecture';
+        if (venueEl) venueEl.innerText = sessionData.venue || 'ICT Hall';
+      } else if (!sessionData && this.activeLectureSession) {
+        this.activeLectureSession = null;
+        if (banner) banner.classList.add('hidden');
+        if (formBox) formBox.classList.remove('hidden');
+      }
+    });
   }
 
   handleIncomingAttendance(record) {
+    if (!record) return;
+
     // If lecturer is viewing live radar, prepend to table
     const tableBody = document.getElementById('liveRadarTableBody');
     if (tableBody) {
@@ -496,16 +520,21 @@ class SmartBioApp {
     const courseId = Number(courseSelect ? courseSelect.value : 1);
     const topic = topicInput && topicInput.value.trim() ? topicInput.value.trim() : 'Advanced Software Architecture & WebAuthn';
     const venue = venueInput && venueInput.value.trim() ? venueInput.value.trim() : 'ICT Hall A';
+    const currentUser = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Dr. Olawale Adeyemi' };
 
     this.activeLectureSession = {
       id: Date.now(),
       courseId,
       lecturerId: this.currentUserId,
+      lecturerName: currentUser.fullName,
       topic,
       venue,
       startTime: new Date().toLocaleTimeString(),
       status: 'ACTIVE'
     };
+
+    // Broadcast to Cloud Firestore for cross-device real-time detection
+    window.smartBioCloud.broadcastActiveSession(this.activeLectureSession);
 
     // Update UI elements
     const banner = document.getElementById('liveSessionActiveBanner');
@@ -529,25 +558,38 @@ class SmartBioApp {
       if (timerEl) timerEl.innerText = `${mins}:${secs}`;
     }, 1000);
 
-    // Audit log
+    // Audit log with actorId
     window.smartBioData.addAuditLog({
-      actor: 'Dr. Olawale Adeyemi',
+      actorId: this.currentUserId,
+      actor: currentUser.fullName,
       action: 'SESSION_START',
-      details: `Started lecture session for CSC 401 (${topic}) at ${venue}`,
+      details: `Started lecture session for course #${courseId} (${topic}) at ${venue}`,
       time: new Date().toLocaleString()
     });
 
-    this.showToast('Live Lecture Session is now ACTIVE & Streaming', 'success');
+    this.showToast('Live Lecture Session is now ACTIVE & Streaming to Cloud', 'success');
   }
 
   endActiveLectureSession() {
     if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+    const currentUser = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Dr. Olawale Adeyemi' };
+
+    // Clear active session from Cloud Firestore
+    window.smartBioCloud.endActiveSessionCloud();
     this.activeLectureSession = null;
 
     const banner = document.getElementById('liveSessionActiveBanner');
     const formBox = document.getElementById('lectureSessionConfigBox');
     if (banner) banner.classList.add('hidden');
     if (formBox) formBox.classList.remove('hidden');
+
+    window.smartBioData.addAuditLog({
+      actorId: this.currentUserId,
+      actor: currentUser.fullName,
+      action: 'SESSION_END',
+      details: `Concluded live lecture session`,
+      time: new Date().toLocaleString()
+    });
 
     this.showToast('Lecture Session concluded and saved.', 'info');
   }

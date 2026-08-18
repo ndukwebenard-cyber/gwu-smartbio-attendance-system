@@ -9,8 +9,9 @@ USE smartbio_attendance_db;
 INSERT INTO roles (role_id, role_name, description) VALUES
 (1, 'ADMIN', 'System Administrator with full management & audit privileges'),
 (2, 'LECTURER', 'Academic staff creating sessions, monitoring radar & resolving flags'),
-(3, 'STUDENT', 'Enrolled student tracking attendance and generating clearance dockets'),
-(4, 'KIOSK_TERMINAL', 'Classroom physical scanner kiosk / terminal interface')
+(3, 'CLASS_REP', 'Class Representative / Proctor launching kiosk & broadcasting alerts'),
+(4, 'STUDENT', 'Enrolled student tracking attendance and generating clearance dockets'),
+(5, 'KIOSK_TERMINAL', 'Classroom physical scanner kiosk / terminal interface')
 ON DUPLICATE KEY UPDATE description=VALUES(description);
 
 -- 2. Insert Departments
@@ -38,13 +39,15 @@ INSERT INTO users (user_id, identifier, full_name, email, phone_number, password
 (2, 'STF/CSC/042', 'Dr. Olawale Adeyemi', 'o.adeyemi@smartbio.edu.ng', '+2348031234567', '$2y$10$hashed_lecturer_pass', 2, 1, NULL),
 (3, 'STF/CSC/018', 'Prof. Ngozi Okoro', 'n.okoro@smartbio.edu.ng', '+2348039876543', '$2y$10$hashed_lecturer_pass', 2, 1, NULL),
 -- Students (400 Level Final Year)
-(4, 'GWU/CSC/22/001', 'Benedict Uchechukwu', 'b.uche@student.gwu.edu', '+2348141112233', '$2y$10$hashed_student_pass', 3, 1, 400),
-(5, 'GWU/CSC/22/014', 'Folake Adebayo', 'f.adebayo@student.gwu.edu', '+2348142223344', '$2y$10$hashed_student_pass', 3, 1, 400),
+(4, 'GWU/CSC/22/001', 'Benedict Uchechukwu', 'b.uche@student.gwu.edu', '+2348141112233', '$2y$10$hashed_student_pass', 4, 1, 400),
+(5, 'GWU/CSC/22/014', 'Folake Adebayo', 'f.adebayo@student.gwu.edu', '+2348142223344', '$2y$10$hashed_student_pass', 4, 1, 400),
+-- Class Representative (Course Proctor)
 (6, 'GWU/CSC/22/028', 'Chukwudi Eze', 'c.eze@student.gwu.edu', '+2348143334455', '$2y$10$hashed_student_pass', 3, 1, 400),
-(7, 'GWU/CSC/22/035', 'Amina Mohammed', 'a.mohammed@student.gwu.edu', '+2348144445566', '$2y$10$hashed_student_pass', 3, 1, 400),
-(8, 'GWU/CSC/22/052', 'Tunde Bakare', 't.bakare@student.gwu.edu', '+2348145556677', '$2y$10$hashed_student_pass', 3, 1, 400),
-(9, 'GWU/CSC/22/063', 'Emeka Nwosu', 'e.nwosu@student.gwu.edu', '+2348146667788', '$2y$10$hashed_student_pass', 3, 1, 400),
-(10, 'GWU/CSC/22/077', 'Zainab Bello', 'z.bello@student.gwu.edu', '+2348147778899', '$2y$10$hashed_student_pass', 3, 1, 400)
+-- Other Students
+(7, 'GWU/CSC/22/035', 'Amina Mohammed', 'a.mohammed@student.gwu.edu', '+2348144445566', '$2y$10$hashed_student_pass', 4, 1, 400),
+(8, 'GWU/CSC/22/052', 'Tunde Bakare', 't.bakare@student.gwu.edu', '+2348145556677', '$2y$10$hashed_student_pass', 4, 1, 400),
+(9, 'GWU/CSC/22/063', 'Emeka Nwosu', 'e.nwosu@student.gwu.edu', '+2348146667788', '$2y$10$hashed_student_pass', 4, 1, 400),
+(10, 'GWU/CSC/22/077', 'Zainab Bello', 'z.bello@student.gwu.edu', '+2348147778899', '$2y$10$hashed_student_pass', 4, 1, 400)
 ON DUPLICATE KEY UPDATE full_name=VALUES(full_name);
 
 -- 5. Insert Courses

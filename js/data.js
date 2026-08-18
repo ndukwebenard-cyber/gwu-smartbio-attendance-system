@@ -289,6 +289,18 @@ class DataStore {
   }
 
   addAttendance(record) {
+    // Prevent duplicate attendance for the same session and student
+    const isDuplicate = this.data.attendanceRecords.some(a => 
+      Number(a.sessionId) === Number(record.sessionId) && 
+      Number(a.studentId) === Number(record.studentId) && 
+      (a.status === 'PRESENT' || a.status === 'FLAGGED_RESOLVED')
+    );
+
+    if (isDuplicate) {
+      console.warn(`[SmartBio] Idempotency notice: Student #${record.studentId} is already marked present for session #${record.sessionId}.`);
+      return null;
+    }
+
     record.id = Date.now();
     this.data.attendanceRecords.push(record);
     this.save();
@@ -296,6 +308,16 @@ class DataStore {
   }
 
   addFlaggedException(exception) {
+    // Avoid multiple pending flags for same student and session
+    const existing = this.data.flaggedExceptions.find(f => 
+      Number(f.sessionId) === Number(exception.sessionId) && 
+      Number(f.studentId) === Number(exception.studentId)
+    );
+    if (existing) {
+      console.warn(`[SmartBio] Flag already pending for student #${exception.studentId}.`);
+      return existing;
+    }
+
     exception.id = Date.now();
     this.data.flaggedExceptions.push(exception);
     this.save();
@@ -310,6 +332,8 @@ class DataStore {
 
       if (action === 'APPROVE') {
         const student = this.getUserById(exception.studentId);
+        const lecturer = this.getUserById(resolvedByLecturerId) || { fullName: `Lecturer #${resolvedByLecturerId}` };
+        
         this.addAttendance({
           sessionId: exception.sessionId,
           studentId: exception.studentId,
@@ -321,7 +345,8 @@ class DataStore {
         });
 
         this.addAuditLog({
-          actor: `Lecturer (ID: ${resolvedByLecturerId})`,
+          actorId: resolvedByLecturerId,
+          actor: lecturer.fullName,
           action: 'FLAG_OVERRIDE_APPROVED',
           details: `Approved flagged attendance for ${student ? student.fullName : 'Student'} (${student ? student.identifier : ''}). Note: ${notes}`,
           time: new Date().toLocaleString()
@@ -335,6 +360,7 @@ class DataStore {
 
   addAuditLog(log) {
     log.id = Date.now();
+    if (!log.actorId) log.actorId = null;
     this.data.auditLogs.unshift(log);
     this.save();
   }

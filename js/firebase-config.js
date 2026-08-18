@@ -125,15 +125,56 @@ class CloudSyncEngine {
         }, (error) => {
           console.warn('Firestore flagged listener notice:', error.message);
         });
+
+      // 3. Real-time Active Lecture Session Broadcast
+      this.db.collection('lecture_sessions').doc('active_session')
+        .onSnapshot((doc) => {
+          if (doc.exists) {
+            const sessionData = doc.data();
+            window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: sessionData }));
+          } else {
+            window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null }));
+          }
+        }, (error) => {
+          console.warn('Firestore active session listener notice:', error.message);
+        });
     } catch (e) {
       console.warn('Could not attach Firestore listeners:', e);
     }
   }
 
+  // Broadcast Active Lecture Session to Cloud
+  async broadcastActiveSession(session) {
+    if (this.isConnected && this.db) {
+      try {
+        await this.db.collection('lecture_sessions').doc('active_session').set({
+          ...session,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('Active session broadcast skipped:', e.message);
+      }
+    }
+  }
+
+  // End Active Lecture Session in Cloud
+  async endActiveSessionCloud() {
+    if (this.isConnected && this.db) {
+      try {
+        await this.db.collection('lecture_sessions').doc('active_session').delete();
+      } catch (e) {
+        console.warn('Active session end skipped:', e.message);
+      }
+    }
+  }
+
   // Push new attendance record to Cloud + Local Store
   async recordAttendance(record) {
-    // 1. Save to Local Store first (instant zero-lag UI response)
-    window.smartBioData.addAttendance(record);
+    // 1. Save to Local Store first (idempotent check inside addAttendance)
+    const saved = window.smartBioData.addAttendance(record);
+    if (!saved) {
+      return null; // duplicate check-in prevented
+    }
 
     // 2. Broadcast via Firestore Cloud
     if (this.isConnected && this.db) {
@@ -149,6 +190,7 @@ class CloudSyncEngine {
 
     // 3. Emit event locally
     window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: record }));
+    return saved;
   }
 
   // Push new flagged exception to Cloud + Local Store
