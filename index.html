@@ -14,6 +14,11 @@
   <link rel="stylesheet" href="css/onboarding.css">
   <link rel="stylesheet" href="css/dashboards.css">
   <link rel="stylesheet" href="css/scanner.css">
+
+  <!-- Firebase Web SDK (v10 Compat for Zero-Build Live Cloud Execution) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -360,12 +365,15 @@
           <h2>System Administration & NDPA 2023 Audit Console</h2>
           <p>Institutional Overview: Global Wealth University • Academic Session 2025/2026</p>
         </div>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-primary btn-sm" id="btnAdminSeedCloud" onclick="smartBioApp.seedCloudFirestore()">
+            ☁️ Seed Firestore Cloud
+          </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminExportSQL">
             💾 Export SQL Dump
           </button>
           <button class="btn btn-danger btn-sm" id="btnAdminResetDB">
-            🔄 Reset to Seeds
+            🔄 Reset Local Seeds
           </button>
         </div>
       </div>

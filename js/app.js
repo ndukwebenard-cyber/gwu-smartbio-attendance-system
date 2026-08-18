@@ -709,6 +709,7 @@ class SmartBioApp {
   bindAdminEvents() {
     const btnReset = document.getElementById('btnAdminResetDB');
     const btnExportSQL = document.getElementById('btnAdminExportSQL');
+    const btnSeedCloud = document.getElementById('btnAdminSeedCloud');
 
     if (btnReset) {
       btnReset.addEventListener('click', () => {
@@ -722,16 +723,34 @@ class SmartBioApp {
 
     if (btnExportSQL) {
       btnExportSQL.addEventListener('click', () => {
-        const sql = window.smartBioData.exportSQLDump();
-        const blob = new Blob([sql], { type: 'text/sql' });
+        const sql = window.smartBioData.generateSQLDump();
+        const blob = new Blob([sql], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `smartbio_dump_${Date.now()}.sql`;
+        a.download = `smartbio_gwu_dump_${Date.now()}.sql`;
         a.click();
         URL.revokeObjectURL(url);
-        this.showToast('SQL Dump exported successfully', 'success');
+        this.showToast('SQL DDL Dump generated & downloaded', 'success');
       });
+    }
+
+    if (btnSeedCloud) {
+      btnSeedCloud.addEventListener('click', () => this.seedCloudFirestore());
+    }
+  }
+
+  async seedCloudFirestore() {
+    this.showToast('Uploading GWU courses, users & departments to Google Cloud Firestore...', 'info');
+    try {
+      const success = await window.smartBioCloud.seedCloudDatabase();
+      if (success) {
+        window.smartBioAudio.playSuccessChime();
+        this.showToast('✅ Google Cloud Firestore populated with live university records!', 'success');
+      }
+    } catch (e) {
+      console.error(e);
+      this.showToast('Cloud seeding failed. Check Firebase console connection.', 'error');
     }
   }
 
