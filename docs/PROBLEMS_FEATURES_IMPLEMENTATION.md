@@ -98,13 +98,47 @@ Production rules enforce RBAC at the database layer. Test mode (`allow read, wri
     $$x = \left\lceil \frac{0.75 \times C - A}{0.25} \right\rceil$$
   - 🔴 **Ineligible ($< 70.00\%$)**: Flagged as academic defaulter, barred from course examination.
 
+### 6. Dynamic User Registration & Anti-Fake Matric ID Generator
+* **Algorithmic ID Generation**: Selecting **Department** (e.g., `CSC`, `CYB`, `IFT`) and **Academic Level** (`100L`–`400L` / `Faculty`) automatically computes entry year and derives the next sequential institutional matric/staff number:
+  $$\text{Format: } \mathbf{\text{GWU}} \ / \ \mathbf{\text{DEPT\_CODE}} \ / \ \mathbf{\text{ENTRY\_YEAR}} \ / \ \mathbf{\text{SEQUENCE}} \quad \text{(e.g. } \texttt{GWU/CSC/22/053}\text{)}$$
+* **Automated Cohort Course Enrollment**:
+  - Automatically queries all active courses matching the registrant's Department and Level.
+  - Automatically registers the student into `courseRegistrations`, landing them on a pre-populated dashboard with active course tracking at 0% baseline.
+
 ---
 
-### 5. Nigeria Data Protection Act (NDPA) 2023 Compliance
-* **Zero Raw Image Storage**: Only irreversible one-way SHA-256 minutiae hashes and WebAuthn public keys are persisted.
-* **Immutable Audit Trail**: Every session creation, scan attempt, and lecturer override logs actor identity, timestamp, IP address, and security reason notes.
+### 7. Course Creation & Academic Delegation (Lecturer & Class Rep)
+* **Delegated Course Creation Modal (`#createCourseModal`)**:
+  - **Lecturers**: Create new courses assigned to themselves or co-lecturers with custom statutory attendance thresholds (default 75%).
+  - **Class Representatives**: Create courses on behalf of departmental faculty members with automatic cohort linkage.
+* **Instant Cohort Linkage**: When a course is registered for `CSC 400L`, all active students matching that cohort are automatically enrolled into `courseRegistrations`.
+* **NDPA Audit Trail**: Logs an immutable audit record documenting the creator, beneficiary faculty member, and cohort enrollment headcount.
 
 ---
+
+### 8. Admin Course Ownership Governance & User Management
+* **Course Ownership Transfer (Faculty Reassignment)**:
+  - Admin can reassign any active course from one lecturer to another with documented administrative justification.
+  - The new lecturer immediately gains live session broadcasting authority, and all historical lecture records remain intact.
+* **User Role Elevation & Biometric Governance**:
+  - **Role Elevation**: 1-click promotion of Students to Class Representatives (and vice versa).
+  - **Biometric Reset**: Admin can reset corrupted or changed biometric credentials (`hasBiometrics: false`), prompting physical re-enrollment.
+  - **Deactivation/Deletion**: Remove obsolete course offerings or unenroll test accounts.
+
+---
+
+### 9. User Profile Modal & Real-Time Biometric Lifecycle
+* **Unified Profile Modal (`#profileModal`)**:
+  - Displays user avatar, full legal name, institutional ID, department, level, and 2FA status.
+  - **Biometric Panel**: Real-time enrollment status badge (`✓ ENROLLED` vs `⚠️ PENDING ENROLLMENT`), cryptographic minutiae hash / FIDO2 credential ID, and active **"Enroll / Test Device Passkey"** / **"Test Optical Scanner"** triggers.
+  - **Academic / Scope Overview**: Real-time stats dynamically computed per role (course clearance rate for students, teaching load for faculty, proctor scope for class reps).
+
+---
+
+### 10. Persistent Authenticated Session Navigation
+* **Decoupled Architecture**: Authenticated identity (`this.authenticatedUser`) is strictly decoupled from perspective view routing (`this.currentView`).
+* **Zero Session Mutation**: Tab switching never mutates or overwrites user credentials.
+* **Admin Global Access**: When an Admin inspects the Student or Lecturer view, all 5 navbar pills remain permanently active, allowing 1-click return to the Admin Portal.
 
 ## 💻 Part 3: Technical Implementation Details
 

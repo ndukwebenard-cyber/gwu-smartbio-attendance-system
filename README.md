@@ -58,8 +58,18 @@ Traditional attendance systems in West African higher education suffer from:
   $$x = \left\lceil \frac{0.75 \times C - A}{0.25} \right\rceil$$
 - **Printable Examination Clearance Docket**: Stamped with clearance status and an anti-tamper QR verification token.
 
-### 6. 👨‍💼 Administrator Portal & 1-Click Cloud Seeder
+### 6. 👨‍💼 Administrator Portal, Course Governance & 1-Click Cloud Seeder
+- **Course Ownership Governance**: Reassign course ownership from one faculty member to another with documented administrative justification.
+- **User Role Elevation**: 1-click promotion of students to Class Representatives (and vice versa) and biometric credential resets.
 - Complete university directory management, NDPA 2023 audit trail logs, 1-Click Firestore Cloud Seeder, and SQL schema dump export.
+
+### 7. 📚 Course Creation & Delegation (Lecturers & Class Reps)
+- **Delegated Course Creation**: Lecturers and Class Reps can create new course offerings attached to specific departments and academic levels.
+- **Automatic Cohort Enrollment**: Creating a course automatically enrolls all matching departmental cohort students in `courseRegistrations`.
+
+### 8. 👤 User Profile Modal & Biometric Lifecycle Management
+- Interactive profile modal providing real-time WebAuthn passkey and optical scanner enrollment, credential inspection, and role-specific academic statistics.
+- **Anti-Fake Matric ID Generator**: Registration form algorithmically calculates valid institutional IDs (`GWU/CSC/22/xxx`, `STF/CSC/xxx`) and auto-enrolls new students into their cohort curriculum.
 
 ---
 
