@@ -15,10 +15,16 @@ class SmartBioApp {
   init() {
     // Initialize Subsystems
     window.smartBioTour.init();
-    setTimeout(() => window.smartBioCloud.initializeFirebase(), 500);
-
-    // Initial default demo user (Dr. Olawale Adeyemi - LECTURER)
-    this.authenticatedUser = window.smartBioData.getUserById(2) || (window.smartBioData.getUsers() || [])[0];
+    // Initial session restoration from localStorage
+    try {
+      const storedAuth = localStorage.getItem('smartbio_logged_in_user');
+      if (storedAuth) {
+        this.authenticatedUser = JSON.parse(storedAuth);
+        this.currentUserId = this.authenticatedUser ? this.authenticatedUser.id : null;
+      }
+    } catch (e) {
+      console.warn('Auth restoration notice:', e);
+    }
 
     // Institutional Security Passcodes for RBAC Gatekeeping
     this.AUTH_PASSCODES = {
@@ -56,8 +62,12 @@ class SmartBioApp {
       console.warn('Session restoration notice:', e);
     }
 
-    // Default view based on authenticated user
-    this.switchRole(this.authenticatedUser ? this.authenticatedUser.role : 'LECTURER');
+    // Route depending on authentication state
+    if (this.authenticatedUser) {
+      this.switchRole(this.authenticatedUser.role);
+    } else {
+      this.renderLoggedOutState();
+    }
   }
 
   bindAutoCaseInputs() {
@@ -182,16 +192,52 @@ class SmartBioApp {
   handleSignOut() {
     this.showToast('Signing out of session...', 'info');
     window.smartBioAudio.playLaserChirp();
-    
-    if (window.smartBioCloud.isConnected && window.smartBioCloud.auth) {
+
+    if (window.smartBioCloud && window.smartBioCloud.auth && window.smartBioCloud.isConnected) {
       try {
         window.smartBioCloud.auth.signOut();
       } catch (e) {}
     }
 
+    if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+    this.activeLectureSession = null;
+
+    this.renderLoggedOutState();
+    this.showToast('Signed out completely. Please sign in to continue.', 'info');
+  }
+
+  renderLoggedOutState() {
+    this.authenticatedUser = null;
     this.currentUserId = null;
+    try {
+      localStorage.removeItem('smartbio_logged_in_user');
+      localStorage.removeItem('smartbio_active_session');
+    } catch (e) {}
+
+    // Update navbar user chip
+    const navAvatar = document.getElementById('navAuthAvatar');
+    const navName = document.getElementById('navAuthName');
+    const navRoleBadge = document.getElementById('navAuthRoleBadge');
+    if (navAvatar) navAvatar.innerText = '👤';
+    if (navName) navName.innerText = 'Guest';
+    if (navRoleBadge) {
+      navRoleBadge.innerText = 'SIGNED OUT';
+      navRoleBadge.className = 'badge badge-ineligible';
+    }
+
+    // Hide all portal views
+    document.querySelectorAll('.portal-view').forEach(view => {
+      view.classList.remove('active');
+    });
+
+    // Hide all navigation pills
+    document.querySelectorAll('.role-pill').forEach(pill => {
+      pill.style.display = 'none';
+      pill.classList.remove('active');
+    });
+
+    // Open Auth Modal in Login mode
     this.openAuthModal('LOGIN');
-    this.showToast('Session ended. Select a role profile or log in.', 'info');
   }
 
   handleRegRoleChange() {
@@ -472,6 +518,10 @@ class SmartBioApp {
     // Route guards, navbar badge and profile modal all key off authenticatedUser.
     // Never mutate this outside of explicit login / logout flows.
     this.authenticatedUser = user;
+    this.currentUserId = user.id;
+    try {
+      localStorage.setItem('smartbio_logged_in_user', JSON.stringify(user));
+    } catch (err) {}
 
     this.closeAuthModal();
     this.switchRole(user.role); // Open the view matching the user's own role
@@ -587,6 +637,12 @@ class SmartBioApp {
     const enrollBiometricsChecked = document.getElementById('regEnrollBiometrics')?.checked;
     if (enrollBiometricsChecked) {
       setTimeout(() => {
+        this.authenticatedUser = newUser;
+        this.currentUserId = newUser.id;
+        try {
+          localStorage.setItem('smartbio_logged_in_user', JSON.stringify(newUser));
+        } catch (err) {}
+        this.switchRole(newUser.role);
         this.openProfileModal();
         this.showToast('Please complete your WebAuthn device passkey enrollment in your profile.', 'info');
       }, 600);
@@ -598,8 +654,13 @@ class SmartBioApp {
     if (window.smartBioCloud && window.smartBioCloud.auth && window.smartBioCloud.isConnected) {
       try { window.smartBioCloud.auth.signOut(); } catch (e) {}
     }
-    window.smartBioAudio.playErrorBuzz();
+    
+    // Clear Session
+    this.authenticatedUser = null;
     this.currentUserId = null;
+    localStorage.removeItem('smartbio_logged_in_user');
+    
+    window.smartBioAudio.playErrorBuzz();
     // Reset all role pills to visible for fresh login selection
     document.querySelectorAll('.role-pill').forEach(p => p.style.display = '');
     this.openAuthModal('LOGIN');
@@ -1568,6 +1629,22 @@ class SmartBioApp {
         `;
       });
       auditTableBody.innerHTML = html;
+    }
+  }
+
+  async cleanFirestoreData() {
+    if (!confirm('🧹 Clean Firestore Test Records?\n\nThis will purge transient test attendance scans and test flags, while retaining and normalizing all authentic user accounts, courses, and departments with clean system unique IDs.')) {
+      return;
+    }
+
+    this.showToast('🧹 Purging test records & normalizing Firestore documents...', 'info');
+    try {
+      await window.smartBioCloud.cleanFirestoreAndNormalizeUniqueIds();
+      window.smartBioAudio.playSuccessChime();
+      this.showToast('✅ Google Cloud Firestore sanitized & normalized with unique IDs!', 'success');
+    } catch (err) {
+      console.error(err);
+      this.showToast(`Clean Firestore Notice: ${err.message}`, 'error');
     }
   }
 

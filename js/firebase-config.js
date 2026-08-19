@@ -308,6 +308,80 @@ class CloudSyncEngine {
     }
   }
 
+  // Purge test insertions (attendance & flags) while retaining and normalizing users, departments, and courses with clean unique IDs
+  async cleanFirestoreAndNormalizeUniqueIds() {
+    if (!this.isConnected || !this.db) {
+      const initialized = await this.initializeFirebase();
+      if (!initialized) throw new Error('Firebase Cloud Firestore is offline. Check API credentials.');
+    }
+
+    try {
+      console.log('🧹 Purging test insertions from Firestore...');
+
+      // 1. Delete all attendance_records (test scans)
+      const attSnap = await this.db.collection('attendance_records').get();
+      if (!attSnap.empty) {
+        const attBatch = this.db.batch();
+        attSnap.forEach(doc => attBatch.delete(doc.ref));
+        await attBatch.commit();
+        console.log(`✓ Purged ${attSnap.size} test attendance records.`);
+      }
+
+      // 2. Delete all flagged_exceptions (test exceptions)
+      const flagSnap = await this.db.collection('flagged_exceptions').get();
+      if (!flagSnap.empty) {
+        const flagBatch = this.db.batch();
+        flagSnap.forEach(doc => flagBatch.delete(doc.ref));
+        await flagBatch.commit();
+        console.log(`✓ Purged ${flagSnap.size} test flagged exceptions.`);
+      }
+
+      // 3. Clear active lecture session doc
+      await this.db.collection('lecture_sessions').doc('active_session').delete().catch(() => {});
+
+      // 4. Update / Normalize permanent datasets with unified system-wide unique IDs
+      const data = window.smartBioData.load();
+      const normBatch = this.db.batch();
+
+      // Users: doc ID = user.id (1, 2, 3...) or user.identifier
+      data.users.forEach(u => {
+        const uRef = this.db.collection('users').doc(String(u.id));
+        normBatch.set(uRef, {
+          ...u,
+          systemUid: `GWU-USR-${String(u.id).padStart(4, '0')}`,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+
+      // Departments: doc ID = dept.id
+      data.departments.forEach(d => {
+        const dRef = this.db.collection('departments').doc(String(d.id));
+        normBatch.set(dRef, {
+          ...d,
+          systemUid: `GWU-DEPT-${d.code}`,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+
+      // Courses: doc ID = course.id
+      data.courses.forEach(c => {
+        const cRef = this.db.collection('courses').doc(String(c.id));
+        normBatch.set(cRef, {
+          ...c,
+          systemUid: `GWU-CRS-${c.code.replace(/\s+/g, '')}`,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+
+      await normBatch.commit();
+      console.log('✅ Firestore sanitized: test records purged; authentic users, depts, and courses normalized.');
+      return true;
+    } catch (err) {
+      console.error('Clean Firestore Error:', err);
+      throw err;
+    }
+  }
+
   updateSyncUI(statusText) {
     const el = document.getElementById('cloudStatusText');
     const dot = document.getElementById('cloudSyncDot');

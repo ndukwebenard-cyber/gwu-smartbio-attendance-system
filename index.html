@@ -428,6 +428,9 @@
           <button class="btn btn-primary btn-sm" id="btnAdminSeedCloud" onclick="smartBioApp.seedCloudFirestore()">
             ☁️ Seed Firestore Cloud
           </button>
+          <button class="btn btn-warning btn-sm" id="btnAdminCleanFirestore" onclick="smartBioApp.cleanFirestoreData()">
+            🧹 Clean Firestore Test Records &amp; Normalize IDs
+          </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminExportSQL">
             💾 Export SQL Dump
           </button>
@@ -635,37 +638,8 @@
           </div>
         </div>
 
-        <!-- Simulation Controls & Test Triggers -->
+        <!-- Hardware Controls & Authentic Scanner Panel -->
         <div class="scanner-controls-panel">
-          <div class="glass-card">
-            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">🧪 Hardware Edge Case Simulator</h3>
-            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px;">
-              Test how the system solves the unreadable scan literature gap with instant flagging and lecturer review.
-            </p>
-            
-            <div class="simulation-btn-group">
-              <button class="btn-sim-test" data-sim-mode="NORMAL" data-student-id="4">
-                <strong>🟢 Normal Scan</strong>
-                <span>Benedict Uche (Match 99%)</span>
-              </button>
-
-              <button class="btn-sim-test" data-sim-mode="SWEATY_RIDGE" data-student-id="8">
-                <strong>🟡 Sweaty Finger Scan</strong>
-                <span>Tunde Bakare (Triggers Flag)</span>
-              </button>
-
-              <button class="btn-sim-test" data-sim-mode="INJURED_FINGER" data-student-id="6">
-                <strong>🟡 Injured Finger Scan</strong>
-                <span>Chukwudi Eze (Triggers Flag)</span>
-              </button>
-
-              <button class="btn-sim-test" data-sim-mode="NON_ENROLLED" data-student-id="0">
-                <strong>🔴 Unregistered Finger</strong>
-                <span>Stranger (Access Denied)</span>
-              </button>
-            </div>
-          </div>
-
           <!-- WebAuthn Browser Native Biometrics Trigger -->
           <div class="glass-card">
             <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">🔐 Browser Native WebAuthn API</h3>
@@ -676,6 +650,34 @@
               <span>👆</span> Scan via WebAuthn Hardware
             </button>
           </div>
+
+          <!-- Collapsible Diagnostic & Testing Suite -->
+          <details class="glass-card" style="padding: 14px; border-color: rgba(255,255,255,0.08);">
+            <summary style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); cursor: pointer; user-select: none;">
+              🛠️ Hardware Diagnostic &amp; Edge Case Simulation Suite
+            </summary>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin: 10px 0 12px;">
+              Simulate hardware biometric edge cases (unreadable ridges, sweat, unregistered fingers) for exception queue validation.
+            </p>
+            <div class="simulation-btn-group">
+              <button class="btn-sim-test" data-sim-mode="NORMAL" data-student-id="4">
+                <strong>🟢 Normal Scan</strong>
+                <span>Benedict Uche (Match 99%)</span>
+              </button>
+              <button class="btn-sim-test" data-sim-mode="SWEATY_RIDGE" data-student-id="8">
+                <strong>🟡 Sweaty Finger Scan</strong>
+                <span>Tunde Bakare (Triggers Flag)</span>
+              </button>
+              <button class="btn-sim-test" data-sim-mode="INJURED_FINGER" data-student-id="6">
+                <strong>🟡 Injured Finger Scan</strong>
+                <span>Chukwudi Eze (Triggers Flag)</span>
+              </button>
+              <button class="btn-sim-test" data-sim-mode="NON_ENROLLED" data-student-id="0">
+                <strong>🔴 Unregistered Finger</strong>
+                <span>Stranger (Access Denied)</span>
+              </button>
+            </div>
+          </details>
         </div>
       </div>
     </section>
@@ -929,16 +931,18 @@
               </div>
             </div>
 
-            <!-- 1-Click Defense Quick-Fill Sandbox -->
-            <div style="background: rgba(255,255,255,0.03); border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 16px;">
-              <span style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">⚡ 1-Click Defense Demo Profiles:</span>
-              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('LECTURER')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">👨‍🏫 Lecturer</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('CLASS_REP')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">👥 Class Rep</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('STUDENT')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">🎓 Student</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('ADMIN')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 30px;">👨‍💼 Admin</button>
+            <!-- Collapsible Quick-Fill Demo Box -->
+            <details style="margin-bottom: 16px; border: 1px dashed var(--border-subtle); border-radius: var(--radius-sm); padding: 8px 12px; background: rgba(0,0,0,0.15);">
+              <summary style="font-size: 0.74rem; color: var(--text-muted); cursor: pointer; user-select: none; font-weight: 700;">
+                ⚡ Quick-Fill Demo Profiles (Examiner / Defense)
+              </summary>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('LECTURER')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 28px;">👨‍🏫 Lecturer</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('CLASS_REP')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 28px;">👥 Class Rep</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('STUDENT')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 28px;">🎓 Student</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillDemoAuth('ADMIN')" style="font-size: 0.72rem; padding: 4px 8px; min-height: 28px;">👨‍💼 Admin</button>
               </div>
-            </div>
+            </details>
 
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 10px;">
               Sign In to Dashboard →

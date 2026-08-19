@@ -418,22 +418,28 @@ body.modal-open {
   touch-action: none;
 }
 
+body.modal-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(5, 8, 15, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(5, 8, 15, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 20px 16px;
   opacity: 0;
   pointer-events: none;
   transition: var(--transition-normal);
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-overlay.active {
@@ -448,23 +454,22 @@ body.modal-open {
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 680px;
-  max-height: min(90vh, calc(100dvh - 32px));
+  max-height: calc(100dvh - 40px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   box-shadow: var(--shadow-lg);
   transform: translateY(20px) scale(0.96);
   transition: var(--transition-normal);
   margin: auto;
+  position: relative;
 }
 
 .auth-subview {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  max-height: min(90vh, calc(100dvh - 32px));
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  max-height: calc(100dvh - 40px);
   width: 100%;
 }
 
@@ -513,7 +518,7 @@ body.modal-open {
 
 .modal-body {
   padding: 20px;
-  overflow-y: auto;
+  overflow-y: auto !important;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   flex: 1 1 auto;
