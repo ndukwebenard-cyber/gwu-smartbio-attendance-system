@@ -5,8 +5,8 @@
 
 class SmartBioApp {
   constructor() {
-    this.currentRole = 'LECTURER';
-    this.currentUserId = 2; // Dr. Olawale Adeyemi by default
+    this.currentView = 'LECTURER';
+    this.authenticatedUser = null; // Strictly tracks the logged-in user account
     this.activeLectureSession = null;
     this.sessionTimerInterval = null;
     this.sessionSecondsElapsed = 0;
@@ -15,8 +15,17 @@ class SmartBioApp {
   init() {
     // Initialize Subsystems
     window.smartBioTour.init();
-    // Defer Firebase init slightly so all CDN SDK scripts are guaranteed parsed
     setTimeout(() => window.smartBioCloud.initializeFirebase(), 500);
+
+    // Initial default demo user (Dr. Olawale Adeyemi - LECTURER)
+    this.authenticatedUser = window.smartBioData.getUserById(2) || (window.smartBioData.getUsers() || [])[0];
+
+    // Institutional Security Passcodes for RBAC Gatekeeping
+    this.AUTH_PASSCODES = {
+      LECTURER: 'GWU-FACULTY-2026',
+      ADMIN: 'GWU-ADMIN-2026',
+      CLASS_REP: 'GWU-PROCTOR-2026'
+    };
 
     this.bindNavbarEvents();
     this.bindAuthEvents();
@@ -28,60 +37,38 @@ class SmartBioApp {
     this.bindCloudModalEvents();
     this.listenToGlobalEvents();
 
-    // Default view
-    this.switchRole(this.currentRole, this.currentUserId);
+    this.populateLectureCourseDropdown();
+    this.updateRegMatricPreview();
+
+    // Default view based on authenticated user
+    this.switchRole(this.authenticatedUser ? this.authenticatedUser.role : 'LECTURER');
   }
 
-  // 1. Role & View Switching
-  switchRole(role, userId = null) {
-    this.currentRole = role;
-    
-    // Set default user based on role if not provided
-    if (!userId) {
-      if (role === 'ADMIN') this.currentUserId = 1;
-      else if (role === 'LECTURER') this.currentUserId = 2; // Dr. Adeyemi
-      else if (role === 'CLASS_REP') this.currentUserId = 6; // Chukwudi Eze
-      else if (role === 'STUDENT') this.currentUserId = 4;  // Benedict
-      else if (role === 'SCANNER') this.currentUserId = null;
-    } else {
-      this.currentUserId = Number(userId);
-    }
+  // 1. Role & View Switching (Changes Perspective Without Mutating Auth Identity)
+  switchRole(targetView) {
+    this.currentView = targetView;
+    const authUser = this.authenticatedUser || window.smartBioData.getUserById(2);
 
-    // Institutional Security Passcodes for RBAC Gatekeeping
-    this.AUTH_PASSCODES = {
-      LECTURER: 'GWU-FACULTY-2026',
-      ADMIN: 'GWU-ADMIN-2026',
-      CLASS_REP: 'GWU-PROCTOR-2026'
-    };
-
-    // Update Navbar User Profile Chip & Role Badge
-    const currentUser = this.currentUserId ? window.smartBioData.getUserById(this.currentUserId) : null;
+    // Update Navbar User Profile Chip (Always reflects true authenticated user)
     const navAvatar = document.getElementById('navAuthAvatar');
     const navName = document.getElementById('navAuthName');
     const navRoleBadge = document.getElementById('navAuthRoleBadge');
     
-    if (currentUser) {
-      if (navAvatar) navAvatar.innerText = currentUser.avatar || '👤';
-      if (navName) navName.innerText = currentUser.fullName.split(' ')[0] || currentUser.fullName;
+    if (authUser) {
+      if (navAvatar) navAvatar.innerText = authUser.avatar || '👤';
+      if (navName) navName.innerText = authUser.fullName.split(' ')[0] || authUser.fullName;
       if (navRoleBadge) {
-        navRoleBadge.innerText = currentUser.role || role;
-        navRoleBadge.className = `badge ${currentUser.role === 'ADMIN' ? 'badge-flagged' : (currentUser.role === 'LECTURER' ? 'badge-eligible' : 'badge-at-risk')}`;
-      }
-    } else if (role === 'SCANNER') {
-      if (navAvatar) navAvatar.innerText = '🖲️';
-      if (navName) navName.innerText = 'Kiosk Terminal';
-      if (navRoleBadge) {
-        navRoleBadge.innerText = 'KIOSK';
-        navRoleBadge.className = 'badge badge-eligible';
+        navRoleBadge.innerText = authUser.role;
+        navRoleBadge.className = `badge ${authUser.role === 'ADMIN' ? 'badge-flagged' : (authUser.role === 'LECTURER' ? 'badge-eligible' : 'badge-at-risk')}`;
       }
     }
 
-    // Enforce Route Guards: Dynamic Navbar Tabs Lockdown based on Authenticated Role
-    this.updateNavbarRouteGuards(currentUser ? currentUser.role : role);
+    // Role-based view authorization gating based on authenticated role
+    this.updateNavbarRouteGuards(authUser ? authUser.role : 'STUDENT');
 
     // Update Navbar active pill
     document.querySelectorAll('.role-pill').forEach(pill => {
-      pill.classList.toggle('active', pill.dataset.role === role);
+      pill.classList.toggle('active', pill.dataset.role === targetView);
     });
 
     // Hide all views
@@ -89,30 +76,33 @@ class SmartBioApp {
       view.classList.remove('active');
     });
 
+    // Refresh course dropdowns
+    this.populateLectureCourseDropdown();
+
     // Show active view
-    if (role === 'ADMIN') {
+    if (targetView === 'ADMIN') {
       const v = document.getElementById('adminPortalView');
       if (v) v.classList.add('active');
       this.renderAdminPortal();
-    } else if (role === 'LECTURER') {
+    } else if (targetView === 'LECTURER') {
       const v = document.getElementById('lecturerPortalView');
       if (v) v.classList.add('active');
       this.renderLecturerPortal();
-    } else if (role === 'CLASS_REP') {
+    } else if (targetView === 'CLASS_REP') {
       const v = document.getElementById('classRepPortalView');
       if (v) v.classList.add('active');
       this.renderClassRepPortal();
-    } else if (role === 'STUDENT') {
+    } else if (targetView === 'STUDENT') {
       const v = document.getElementById('studentPortalView');
       if (v) v.classList.add('active');
       this.renderStudentPortal();
-    } else if (role === 'SCANNER') {
+    } else if (targetView === 'SCANNER') {
       const v = document.getElementById('scannerKioskView');
       if (v) v.classList.add('active');
       this.renderScannerTerminal();
     }
 
-    this.showToast(`Active Perspective: ${role} Portal`, 'info');
+    this.showToast(`Active Perspective: ${targetView} View`, 'info');
   }
 
   // Route Guard: Locks down navigation tabs based on least-privilege RBAC
@@ -172,28 +162,78 @@ class SmartBioApp {
     const passcodeLabel = document.getElementById('regPasscodeLabel');
     const passcodeInput = document.getElementById('regPasscodeInput');
 
-    if (!passcodeGroup) return;
+    if (passcodeGroup) {
+      if (role === 'STUDENT') {
+        passcodeGroup.style.display = 'none';
+        if (passcodeInput) passcodeInput.required = false;
+      } else {
+        passcodeGroup.style.display = 'block';
+        if (passcodeInput) {
+          passcodeInput.required = true;
+          passcodeInput.value = '';
+        }
 
-    if (role === 'STUDENT') {
-      passcodeGroup.style.display = 'none';
-      if (passcodeInput) passcodeInput.required = false;
-    } else {
-      passcodeGroup.style.display = 'block';
-      if (passcodeInput) {
-        passcodeInput.required = true;
-        passcodeInput.value = '';
+        if (role === 'LECTURER') {
+          passcodeLabel.innerText = '🔐 Institutional Faculty Authorization Key Required';
+          passcodeInput.placeholder = 'e.g. GWU-FACULTY-2026';
+        } else if (role === 'CLASS_REP') {
+          passcodeLabel.innerText = '🔐 Course Proctor Authorization Key Required';
+          passcodeInput.placeholder = 'e.g. GWU-PROCTOR-2026';
+        } else if (role === 'ADMIN') {
+          passcodeLabel.innerText = '🔐 Master Administrator Security Key Required';
+          passcodeInput.placeholder = 'e.g. GWU-ADMIN-2026';
+        }
       }
+    }
 
-      if (role === 'LECTURER') {
-        passcodeLabel.innerText = '🔐 Institutional Faculty Authorization Key Required';
-        passcodeInput.placeholder = 'e.g. GWU-FACULTY-2026';
-      } else if (role === 'CLASS_REP') {
-        passcodeLabel.innerText = '🔐 Course Proctor Authorization Key Required';
-        passcodeInput.placeholder = 'e.g. GWU-PROCTOR-2026';
-      } else if (role === 'ADMIN') {
-        passcodeLabel.innerText = '🔐 Master Administrator Security Key Required';
-        passcodeInput.placeholder = 'e.g. GWU-ADMIN-2026';
-      }
+    this.updateRegMatricPreview();
+  }
+
+  updateRegMatricPreview() {
+    const roleSelect = document.getElementById('regRoleSelect');
+    const deptSelect = document.getElementById('regDepartment');
+    const levelSelect = document.getElementById('regLevel');
+    const matricInput = document.getElementById('regMatricNo');
+    const emailInput = document.getElementById('regEmail');
+    const cohortLabel = document.getElementById('regAutoEnrollCohortLabel');
+    const infoBox = document.getElementById('regAutoEnrollInfoBox');
+
+    const role = roleSelect ? roleSelect.value : 'STUDENT';
+    const deptId = Number(deptSelect ? deptSelect.value : 1);
+    const levelVal = levelSelect ? levelSelect.value : '400';
+
+    const data = window.smartBioData.load();
+    const dept = (data.departments || []).find(d => d.id === deptId) || { code: 'CSC', name: 'Computer Science & Software Eng.' };
+    const deptCode = dept.code;
+
+    // Derive academic entry year (2025/2026 baseline)
+    let entryYear = '22';
+    if (levelVal === '300') entryYear = '23';
+    if (levelVal === '200') entryYear = '24';
+    if (levelVal === '100') entryYear = '25';
+
+    if (cohortLabel) {
+      cohortLabel.innerText = `${deptCode} ${levelVal === 'Faculty' ? 'Faculty Staff' : levelVal + ' Level'}`;
+    }
+
+    if (role === 'STUDENT' || role === 'CLASS_REP') {
+      const existingUsers = (data.users || []).filter(u => u.identifier && u.identifier.startsWith(`GWU/${deptCode}`));
+      const nextSeq = String(existingUsers.length + 1).padStart(3, '0');
+      if (matricInput) matricInput.value = `GWU/${deptCode}/${entryYear}/${nextSeq}`;
+      if (emailInput && !emailInput.value.trim()) emailInput.placeholder = `student.${deptCode.toLowerCase()}@student.gwu.edu`;
+      if (infoBox) infoBox.style.display = 'block';
+    } else if (role === 'LECTURER') {
+      const existingStaff = (data.users || []).filter(u => u.identifier && u.identifier.startsWith(`STF/${deptCode}`));
+      const nextSeq = String(existingStaff.length + 1).padStart(3, '0');
+      if (matricInput) matricInput.value = `STF/${deptCode}/${nextSeq}`;
+      if (emailInput && !emailInput.value.trim()) emailInput.placeholder = `staff.${deptCode.toLowerCase()}@smartbio.edu.ng`;
+      if (infoBox) infoBox.style.display = 'none';
+    } else if (role === 'ADMIN') {
+      const existingAdmins = (data.users || []).filter(u => u.identifier && u.identifier.startsWith('ADM/'));
+      const nextSeq = String(existingAdmins.length + 1).padStart(3, '0');
+      if (matricInput) matricInput.value = `ADM/2026/${nextSeq}`;
+      if (emailInput && !emailInput.value.trim()) emailInput.placeholder = `admin@smartbio.edu.ng`;
+      if (infoBox) infoBox.style.display = 'none';
     }
   }
 
@@ -211,10 +251,16 @@ class SmartBioApp {
       btnSync.addEventListener('click', () => this.openCloudModal());
     }
 
-    // Auth Button in Top Bar
+    // Auth Button in Top Bar (Opens Profile Modal if logged in, else Auth Modal)
     const btnAuth = document.getElementById('btnNavAuth');
     if (btnAuth) {
-      btnAuth.addEventListener('click', () => this.openAuthModal('LOGIN'));
+      btnAuth.addEventListener('click', () => {
+        if (this.currentUserId) {
+          this.openProfileModal();
+        } else {
+          this.openAuthModal('LOGIN');
+        }
+      });
     }
   }
 
@@ -359,6 +405,8 @@ class SmartBioApp {
     if (role === 'ADMIN') avatar = '👨‍💼';
     if (role === 'CLASS_REP') avatar = '👥';
 
+    const targetLevel = academicLevel === 'Faculty' ? null : Number(academicLevel);
+
     const newUser = {
       id: newUserId,
       identifier: matricNo,
@@ -366,13 +414,32 @@ class SmartBioApp {
       email: email,
       role: role,
       departmentId: departmentId,
-      academicLevel: academicLevel === 'Faculty' ? null : Number(academicLevel),
+      academicLevel: targetLevel,
       avatar: avatar,
-      hasBiometrics: true,
-      fingerTemplate: `SHA256:${Date.now().toString(16)}07b81`
+      hasBiometrics: false,
+      fingerTemplate: null
     };
 
     data.users.push(newUser);
+
+    // 3. Auto-Enroll in departmental cohort courses
+    let enrolledCoursesCount = 0;
+    if (role === 'STUDENT' || role === 'CLASS_REP') {
+      const matchingCourses = (data.courses || []).filter(c => c.departmentId === departmentId && (c.level === targetLevel || !targetLevel));
+      let maxRegId = (data.courseRegistrations && data.courseRegistrations.length) ? Math.max(...data.courseRegistrations.map(r => r.id)) : 0;
+      
+      matchingCourses.forEach(c => {
+        maxRegId++;
+        data.courseRegistrations.push({
+          id: maxRegId,
+          studentId: newUserId,
+          courseId: c.id,
+          sessionId: 1
+        });
+        enrolledCoursesCount++;
+      });
+    }
+
     window.smartBioData.save(data);
 
     // If Firestore connected, sync user document
@@ -389,7 +456,15 @@ class SmartBioApp {
     this.closeAuthModal();
 
     window.smartBioAudio.playSuccessChime();
-    this.showToast(`Account successfully registered! Logged in as ${fullName} (${role}).`, 'success');
+    this.showToast(`Account registered with ID ${matricNo}! Auto-enrolled in ${enrolledCoursesCount} departmental courses.`, 'success');
+
+    const enrollBiometricsChecked = document.getElementById('regEnrollBiometrics')?.checked;
+    if (enrollBiometricsChecked) {
+      setTimeout(() => {
+        this.openProfileModal();
+        this.showToast('Please complete your WebAuthn device passkey enrollment in your profile.', 'info');
+      }, 600);
+    }
   }
 
   handleSignOut() {
@@ -835,9 +910,9 @@ class SmartBioApp {
           <div class="course-gauge-card">
             <div>
               <div class="gauge-header">
-                <div>
+                <div class="gauge-header-info">
                   <h3>${stat.course.code}</h3>
-                  <span>${stat.course.title}</span>
+                  <span class="course-title-label">${stat.course.title}</span>
                 </div>
                 <span class="badge ${stat.statusClass}">${stat.badgeLabel}</span>
               </div>
@@ -969,24 +1044,83 @@ class SmartBioApp {
     const totalCoursesEl = document.getElementById('adminStatTotalCourses');
     const totalSessionsEl = document.getElementById('adminStatTotalSessions');
 
-    if (totalStudentsEl) totalStudentsEl.innerText = data.users.filter(u => u.role === 'STUDENT').length;
+    if (totalStudentsEl) totalStudentsEl.innerText = data.users.filter(u => u.role === 'STUDENT' || u.role === 'CLASS_REP').length;
     if (totalLecturersEl) totalLecturersEl.innerText = data.users.filter(u => u.role === 'LECTURER').length;
     if (totalCoursesEl) totalCoursesEl.innerText = data.courses.length;
     if (totalSessionsEl) totalSessionsEl.innerText = data.lectureSessions.length;
 
-    // Users directory table
+    // 1. Course Governance Table
+    const coursesTableBody = document.getElementById('adminCoursesTableBody');
+    if (coursesTableBody) {
+      let html = '';
+      (data.courses || []).forEach(c => {
+        const dept = (data.departments || []).find(d => d.id === c.departmentId) || { code: 'CSC' };
+        const lecturer = (data.users || []).find(u => u.id === c.lecturerId) || { fullName: 'Unassigned Faculty' };
+        html += `
+          <tr>
+            <td><strong class="font-mono">${c.code}</strong></td>
+            <td><strong>${c.title}</strong></td>
+            <td><span class="badge badge-eligible">${dept.code}</span></td>
+            <td>${c.level}L</td>
+            <td>${c.units} Units</td>
+            <td>
+              <span class="text-primary font-bold">👨‍🏫 ${lecturer.fullName}</span>
+            </td>
+            <td><strong class="text-warning">${c.minAttendancePct || 75}%</strong></td>
+            <td>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="smartBioApp.openReassignCourseModal(${c.id})" style="padding: 4px 8px; font-size: 0.72rem; border-color: var(--primary); color: var(--primary);">
+                  🔄 Reassign Owner
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="smartBioApp.handleAdminDeleteCourse(${c.id})" style="padding: 4px 8px; font-size: 0.72rem;">
+                  🗑️ Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+      coursesTableBody.innerHTML = html;
+    }
+
+    // 2. Users directory table with administrative governance
     const usersTableBody = document.getElementById('adminUsersTableBody');
     if (usersTableBody) {
       let html = '';
       data.users.forEach(u => {
+        const dept = (data.departments || []).find(d => d.id === u.departmentId) || { code: 'CSC' };
+        const isEnrolled = u.hasBiometrics;
         html += `
           <tr>
             <td><strong class="font-mono">${u.identifier}</strong></td>
-            <td>${u.avatar || ''} ${u.fullName}</td>
-            <td><span class="badge ${u.role === 'ADMIN' ? 'badge-ineligible' : (u.role === 'LECTURER' ? 'badge-at-risk' : 'badge-eligible')}">${u.role}</span></td>
-            <td>${u.academicLevel ? `${u.academicLevel}L` : 'Staff'}</td>
+            <td>${u.avatar || '👤'} ${u.fullName}</td>
             <td>
-              <span class="badge badge-eligible">✓ ENROLLED (NDPA)</span>
+              <span class="badge ${u.role === 'ADMIN' ? 'badge-flagged' : (u.role === 'LECTURER' ? 'badge-eligible' : (u.role === 'CLASS_REP' ? 'badge-warning' : 'badge-at-risk'))}">
+                ${u.role}
+              </span>
+            </td>
+            <td>${dept.code} • ${u.academicLevel ? `${u.academicLevel}L` : 'Faculty / Staff'}</td>
+            <td>
+              <span class="badge ${isEnrolled ? 'badge-eligible' : 'badge-ineligible'}">
+                ${isEnrolled ? '✓ ENROLLED' : '⚠️ PENDING'}
+              </span>
+            </td>
+            <td>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                ${u.role === 'STUDENT' ? `
+                  <button class="btn btn-secondary btn-sm" onclick="smartBioApp.handleAdminToggleUserRole(${u.id})" style="padding: 3px 8px; font-size: 0.72rem;">
+                    👑 Make Class Rep
+                  </button>
+                ` : ''}
+                ${u.role === 'CLASS_REP' ? `
+                  <button class="btn btn-secondary btn-sm" onclick="smartBioApp.handleAdminToggleUserRole(${u.id})" style="padding: 3px 8px; font-size: 0.72rem;">
+                    🎓 Revert to Student
+                  </button>
+                ` : ''}
+                <button class="btn btn-secondary btn-sm" onclick="smartBioApp.handleAdminResetBiometrics(${u.id})" style="padding: 3px 8px; font-size: 0.72rem;">
+                  🔄 Reset Biometrics
+                </button>
+              </div>
             </td>
           </tr>
         `;
@@ -994,11 +1128,11 @@ class SmartBioApp {
       usersTableBody.innerHTML = html;
     }
 
-    // Audit trail table
+    // 3. Audit trail table
     const auditTableBody = document.getElementById('adminAuditTableBody');
     if (auditTableBody) {
       let html = '';
-      data.auditLogs.slice(0, 10).forEach(log => {
+      data.auditLogs.slice().reverse().slice(0, 15).forEach(log => {
         html += `
           <tr>
             <td><strong class="font-mono">${log.time}</strong></td>
@@ -1136,7 +1270,504 @@ class SmartBioApp {
     if (modal) modal.classList.remove('active');
   }
 
-  // 8. Toast UI Notification System
+  // 8. Dynamic Course Select Populator
+  populateLectureCourseDropdown() {
+    const select = document.getElementById('lectureCourseSelect');
+    if (!select) return;
+
+    const data = window.smartBioData.load();
+    const courses = data.courses || [];
+    
+    // Filter courses relevant to current lecturer or show all
+    let relevantCourses = courses;
+    if (this.currentRole === 'LECTURER' && this.currentUserId) {
+      relevantCourses = courses.filter(c => c.lecturerId === this.currentUserId);
+      if (relevantCourses.length === 0) relevantCourses = courses;
+    }
+
+    let html = '';
+    relevantCourses.forEach(c => {
+      html += `<option value="${c.id}">${c.code} — ${c.title} (${c.units} Units)</option>`;
+    });
+
+    select.innerHTML = html;
+  }
+
+  // 9. User Profile Modal & Biometric Lifecycle
+  openProfileModal() {
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+
+    const user = window.smartBioData.getUserById(this.currentUserId) || (window.smartBioData.getUsers() || [])[0];
+    if (!user) return;
+
+    const data = window.smartBioData.load();
+    const dept = (data.departments || []).find(d => d.id === user.departmentId) || { name: 'Faculty of Applied Sciences' };
+
+    // Identity block
+    const avatarEl = document.getElementById('profileModalAvatar');
+    const nameEl = document.getElementById('profileModalFullName');
+    const roleBadge = document.getElementById('profileModalRoleBadge');
+    const idEl = document.getElementById('profileModalIdentifier');
+    const emailEl = document.getElementById('profileModalEmail');
+    const deptEl = document.getElementById('profileModalDepartment');
+    const levelEl = document.getElementById('profileModalLevel');
+    const bioStatusBadge = document.getElementById('profileModalBiometricStatusBadge');
+    const bioHashEl = document.getElementById('profileModalBiometricHash');
+    const summaryBox = document.getElementById('profileRoleSummaryBox');
+
+    if (avatarEl) avatarEl.innerText = user.avatar || '👤';
+    if (nameEl) nameEl.innerText = user.fullName;
+    if (roleBadge) {
+      roleBadge.innerText = user.role;
+      roleBadge.className = `badge ${user.role === 'ADMIN' ? 'badge-flagged' : (user.role === 'LECTURER' ? 'badge-eligible' : 'badge-at-risk')}`;
+    }
+    if (idEl) idEl.innerText = user.identifier;
+    if (emailEl) emailEl.innerText = user.email;
+    if (deptEl) deptEl.innerText = dept.name;
+    if (levelEl) levelEl.innerText = user.academicLevel ? `${user.academicLevel} Level` : 'Faculty / Administrator';
+
+    // Biometric Status
+    if (user.hasBiometrics) {
+      if (bioStatusBadge) {
+        bioStatusBadge.innerText = '✓ ENROLLED (NDPA 2023)';
+        bioStatusBadge.className = 'badge badge-eligible';
+      }
+      if (bioHashEl) {
+        bioHashEl.innerText = user.fingerTemplate || 'SHA256:8f4c2e91b637dae15091726a84d29f03';
+        bioHashEl.style.color = 'var(--primary)';
+      }
+    } else {
+      if (bioStatusBadge) {
+        bioStatusBadge.innerText = '⚠️ PENDING ENROLLMENT';
+        bioStatusBadge.className = 'badge badge-ineligible';
+      }
+      if (bioHashEl) {
+        bioHashEl.innerText = '⚠️ No hardware biometric or WebAuthn passkey enrolled yet.';
+        bioHashEl.style.color = 'var(--warning)';
+      }
+    }
+
+    // Role-specific metrics in profile
+    if (summaryBox) {
+      if (user.role === 'STUDENT') {
+        const comp = window.smartBioCompliance.calculateStudentCompliance(user.id);
+        const registeredCount = comp ? comp.courseStats.length : 0;
+        const eligibleCount = comp ? comp.courseStats.filter(c => c.status === 'ELIGIBLE').length : 0;
+        summaryBox.innerHTML = `
+          <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">🎓 Student Academic &amp; Clearance Overview</div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+            <span>Enrolled Courses: <strong class="text-main">${registeredCount}</strong></span>
+            <span>Cleared for Exams: <strong class="text-success">${eligibleCount} / ${registeredCount}</strong></span>
+          </div>
+          <div style="font-size: 0.78rem; color: var(--primary);">
+            Overall Status: <strong>${comp ? comp.overallStatus : 'N/A'}</strong>
+          </div>
+        `;
+      } else if (user.role === 'LECTURER') {
+        const coursesTaught = (data.courses || []).filter(c => c.lecturerId === user.id);
+        const sessionsTaught = (data.lectureSessions || []).filter(s => s.lecturerId === user.id);
+        summaryBox.innerHTML = `
+          <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">👨‍🏫 Faculty Teaching Load</div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+            <span>Courses Assigned: <strong class="text-main">${coursesTaught.length}</strong></span>
+            <span>Concluded Sessions: <strong class="text-main">${sessionsTaught.length}</strong></span>
+          </div>
+        `;
+      } else if (user.role === 'CLASS_REP') {
+        summaryBox.innerHTML = `
+          <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">👥 Class Proctor Scope</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">
+            Cohort: <strong class="text-main">${dept.code} ${user.academicLevel || 400}L</strong> • Authorized to create courses &amp; launch hall kiosks.
+          </div>
+        `;
+      } else {
+        summaryBox.innerHTML = `
+          <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">👨‍💼 Administrator Scope</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">
+            System Health: <strong class="text-success">Active</strong> • Total Registered Users: <strong class="text-main">${data.users.length}</strong>
+          </div>
+        `;
+      }
+    }
+
+    modal.classList.add('active');
+  }
+
+  closeProfileModal() {
+    const modal = document.getElementById('profileModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  async handleEnrollBiometrics(mode = 'WEBAUTHN') {
+    const currentUser = window.smartBioData.getUserById(this.currentUserId);
+    if (!currentUser) return;
+
+    if (mode === 'WEBAUTHN') {
+      this.showToast('Triggering WebAuthn device passkey enrollment (Windows Hello / Touch ID / Passkey)...', 'info');
+      try {
+        const res = await window.smartBioBiometric.authenticateWithWebAuthn(currentUser);
+        currentUser.hasBiometrics = true;
+        currentUser.fingerTemplate = `WEBAUTHN:FIDO2:${res.credentialId ? res.credentialId.slice(0, 24) : 'PASSKEY_' + Date.now().toString(36)}`;
+
+        const data = window.smartBioData.load();
+        const idx = data.users.findIndex(u => u.id === currentUser.id);
+        if (idx !== -1) data.users[idx] = currentUser;
+        window.smartBioData.save(data);
+
+        // Firestore sync
+        if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+          try {
+            await window.smartBioCloud.db.collection('users').doc(String(currentUser.id)).update({
+              hasBiometrics: true,
+              fingerTemplate: currentUser.fingerTemplate
+            });
+          } catch (e) {}
+        }
+
+        window.smartBioAudio.playSuccessChime();
+        this.showToast(`✓ Hardware WebAuthn Passkey successfully registered for ${currentUser.fullName}!`, 'success');
+        this.openProfileModal(); // Refresh profile UI
+      } catch (err) {
+        console.warn('WebAuthn registration error:', err);
+        this.showToast('WebAuthn prompt was cancelled or not supported on this device. You can test via the Optical Scanner.', 'warning');
+      }
+    } else if (mode === 'OPTICAL') {
+      this.showToast('Simulating physical optical scanner capture...', 'info');
+      const res = await window.smartBioBiometric.simulateOpticalScan({ studentId: currentUser.id });
+      if (res && (res.status === 'PRESENT' || res.status === 'FLAGGED')) {
+        currentUser.hasBiometrics = true;
+        currentUser.fingerTemplate = `SHA256:${Date.now().toString(16)}07b81`;
+
+        const data = window.smartBioData.load();
+        const idx = data.users.findIndex(u => u.id === currentUser.id);
+        if (idx !== -1) data.users[idx] = currentUser;
+        window.smartBioData.save(data);
+
+        // Firestore sync
+        if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+          try {
+            await window.smartBioCloud.db.collection('users').doc(String(currentUser.id)).update({
+              hasBiometrics: true,
+              fingerTemplate: currentUser.fingerTemplate
+            });
+          } catch (e) {}
+        }
+
+        this.showToast(`✓ Optical fingerprint registered with confidence ${res.confidence}%!`, 'success');
+        this.openProfileModal(); // Refresh profile UI
+      }
+    }
+  }
+
+  // 10. Course Creation Modal & Delegation
+  openCreateCourseModal() {
+    const modal = document.getElementById('createCourseModal');
+    if (!modal) return;
+
+    const data = window.smartBioData.load();
+    const currentUser = window.smartBioData.getUserById(this.currentUserId);
+
+    // Populate department select
+    const deptSelect = document.getElementById('newCourseDepartment');
+    if (deptSelect) {
+      deptSelect.innerHTML = (data.departments || []).map(d => `<option value="${d.id}">${d.code} — ${d.name}</option>`).join('');
+      if (currentUser && currentUser.departmentId) deptSelect.value = currentUser.departmentId;
+    }
+
+    // Populate lecturer select
+    const lecturerSelect = document.getElementById('newCourseLecturer');
+    if (lecturerSelect) {
+      const lecturers = (data.users || []).filter(u => u.role === 'LECTURER' || u.role === 'ADMIN');
+      lecturerSelect.innerHTML = lecturers.map(l => `<option value="${l.id}">${l.fullName} (${l.identifier})</option>`).join('');
+      if (currentUser && (currentUser.role === 'LECTURER' || currentUser.role === 'ADMIN')) {
+        lecturerSelect.value = currentUser.id;
+      }
+    }
+
+    // Set level default
+    const levelSelect = document.getElementById('newCourseLevel');
+    if (levelSelect && currentUser && currentUser.academicLevel) {
+      levelSelect.value = currentUser.academicLevel;
+    }
+
+    modal.classList.add('active');
+  }
+
+  closeCreateCourseModal() {
+    const modal = document.getElementById('createCourseModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  async handleCreateCourse(e) {
+    e.preventDefault();
+    const code = document.getElementById('newCourseCode').value.trim().toUpperCase();
+    const title = document.getElementById('newCourseTitle').value.trim();
+    const units = Number(document.getElementById('newCourseUnits').value);
+    const departmentId = Number(document.getElementById('newCourseDepartment').value);
+    const level = Number(document.getElementById('newCourseLevel').value);
+    const lecturerId = Number(document.getElementById('newCourseLecturer').value);
+    const minAttendancePct = Number(document.getElementById('newCourseThreshold').value) || 75;
+
+    const data = window.smartBioData.load();
+    const nextCourseId = data.courses.length ? Math.max(...data.courses.map(c => c.id)) + 1 : 1;
+
+    const newCourse = {
+      id: nextCourseId,
+      code,
+      title,
+      units,
+      departmentId,
+      level,
+      lecturerId,
+      minAttendancePct
+    };
+
+    data.courses.push(newCourse);
+
+    // Auto-enroll all existing students in this department and level cohort
+    const cohortStudents = (data.users || []).filter(u => 
+      (u.role === 'STUDENT' || u.role === 'CLASS_REP') && 
+      u.departmentId === departmentId && 
+      Number(u.academicLevel) === level
+    );
+
+    let maxRegId = (data.courseRegistrations && data.courseRegistrations.length) ? Math.max(...data.courseRegistrations.map(r => r.id)) : 0;
+    let autoEnrolledCount = 0;
+
+    cohortStudents.forEach(st => {
+      const alreadyRegistered = data.courseRegistrations.some(r => r.studentId === st.id && r.courseId === nextCourseId);
+      if (!alreadyRegistered) {
+        maxRegId++;
+        data.courseRegistrations.push({
+          id: maxRegId,
+          studentId: st.id,
+          courseId: nextCourseId,
+          sessionId: 1
+        });
+        autoEnrolledCount++;
+      }
+    });
+
+    const currentUser = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Course Coordinator', role: 'LECTURER' };
+    const lecturerUser = window.smartBioData.getUserById(lecturerId) || { fullName: 'Faculty Member' };
+
+    // Record Immutable Audit Log
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: this.currentUserId,
+      actor: `${currentUser.fullName} (${currentUser.role})`,
+      action: 'COURSE_CREATE',
+      details: `Created new course ${code} (${title}, ${units} Units) assigned to ${lecturerUser.fullName}. Auto-enrolled ${autoEnrolledCount} cohort students.`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+
+    // Cloud Firestore sync if connected
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        await window.smartBioCloud.db.collection('courses').doc(String(nextCourseId)).set(newCourse);
+      } catch (err) {
+        console.warn('Cloud course sync notice:', err.message);
+      }
+    }
+
+    this.populateLectureCourseDropdown();
+    if (this.currentRole === 'STUDENT') this.renderStudentPortal();
+    if (this.currentRole === 'CLASS_REP') this.renderClassRepPortal();
+    if (this.currentRole === 'LECTURER') this.renderLecturerPortal();
+    if (this.currentRole === 'ADMIN') this.renderAdminPortal();
+
+    this.closeCreateCourseModal();
+    window.smartBioAudio.playSuccessChime();
+  // 11. Admin Governance & Ownership Transfer Methods
+  openReassignCourseModal(courseId) {
+    const modal = document.getElementById('reassignCourseModal');
+    if (!modal) return;
+
+    const data = window.smartBioData.load();
+    const course = (data.courses || []).find(c => c.id === Number(courseId));
+    if (!course) return;
+
+    const currentLecturer = (data.users || []).find(u => u.id === course.lecturerId) || { fullName: 'Unassigned' };
+    const lecturers = (data.users || []).filter(u => u.role === 'LECTURER' || u.role === 'ADMIN');
+
+    const idInput = document.getElementById('reassignCourseId');
+    const titleEl = document.getElementById('reassignCourseCodeTitle');
+    const lecturerEl = document.getElementById('reassignCurrentLecturerName');
+    const selectEl = document.getElementById('reassignNewLecturerSelect');
+
+    if (idInput) idInput.value = course.id;
+    if (titleEl) titleEl.innerText = `${course.code} — ${course.title}`;
+    if (lecturerEl) lecturerEl.innerText = currentLecturer.fullName;
+
+    if (selectEl) {
+      selectEl.innerHTML = lecturers.map(l => `
+        <option value="${l.id}" ${l.id === course.lecturerId ? 'selected' : ''}>
+          ${l.fullName} (${l.identifier}) ${l.id === course.lecturerId ? '— (Current Owner)' : ''}
+        </option>
+      `).join('');
+    }
+
+    modal.classList.add('active');
+  }
+
+  closeReassignCourseModal() {
+    const modal = document.getElementById('reassignCourseModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  async handleSaveCourseReassignment(e) {
+    e.preventDefault();
+    const courseId = Number(document.getElementById('reassignCourseId').value);
+    const newLecturerId = Number(document.getElementById('reassignNewLecturerSelect').value);
+    const reason = document.getElementById('reassignReasonInput').value.trim() || 'HOD Faculty Course Reallocation';
+
+    const data = window.smartBioData.load();
+    const courseIdx = data.courses.findIndex(c => c.id === courseId);
+    if (courseIdx === -1) return;
+
+    const oldCourse = data.courses[courseIdx];
+    const previousLecturer = (data.users || []).find(u => u.id === oldCourse.lecturerId) || { fullName: 'Previous Faculty' };
+    const newLecturer = (data.users || []).find(u => u.id === newLecturerId) || { fullName: 'New Faculty' };
+
+    // Update course owner
+    data.courses[courseIdx].lecturerId = newLecturerId;
+
+    // Log immutable audit trail
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'COURSE_OWNERSHIP_TRANSFER',
+      details: `Reassigned course ${oldCourse.code} (${oldCourse.title}) from ${previousLecturer.fullName} to ${newLecturer.fullName}. Reason: ${reason}`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+
+    // Sync to Firestore
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        await window.smartBioCloud.db.collection('courses').doc(String(courseId)).update({
+          lecturerId: newLecturerId
+        });
+      } catch (err) {}
+    }
+
+    this.closeReassignCourseModal();
+    this.populateLectureCourseDropdown();
+    this.renderAdminPortal();
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Transferred ownership of ${oldCourse.code} to ${newLecturer.fullName}!`, 'success');
+  }
+
+  handleAdminToggleUserRole(userId) {
+    const data = window.smartBioData.load();
+    const userIdx = data.users.findIndex(u => u.id === Number(userId));
+    if (userIdx === -1) return;
+
+    const user = data.users[userIdx];
+    const oldRole = user.role;
+    const newRole = oldRole === 'STUDENT' ? 'CLASS_REP' : (oldRole === 'CLASS_REP' ? 'STUDENT' : oldRole);
+
+    if (newRole === oldRole) return;
+
+    data.users[userIdx].role = newRole;
+    if (newRole === 'CLASS_REP') data.users[userIdx].avatar = '👥';
+    if (newRole === 'STUDENT') data.users[userIdx].avatar = '🎓';
+
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'ROLE_ELEVATION',
+      details: `Modified role for ${user.fullName} (${user.identifier}) from ${oldRole} to ${newRole}`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        window.smartBioCloud.db.collection('users').doc(String(userId)).update({
+          role: newRole,
+          avatar: data.users[userIdx].avatar
+        });
+      } catch (e) {}
+    }
+
+    this.renderAdminPortal();
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Updated role for ${user.fullName} to ${newRole}`, 'success');
+  }
+
+  handleAdminResetBiometrics(userId) {
+    const data = window.smartBioData.load();
+    const userIdx = data.users.findIndex(u => u.id === Number(userId));
+    if (userIdx === -1) return;
+
+    const user = data.users[userIdx];
+    data.users[userIdx].hasBiometrics = false;
+    data.users[userIdx].fingerTemplate = null;
+
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'BIOMETRIC_RESET',
+      details: `Reset biometric template credential for ${user.fullName} (${user.identifier}). Required to re-enroll.`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        window.smartBioCloud.db.collection('users').doc(String(userId)).update({
+          hasBiometrics: false,
+          fingerTemplate: null
+        });
+      } catch (e) {}
+    }
+
+    this.renderAdminPortal();
+    window.smartBioAudio.playLaserChirp();
+    this.showToast(`Biometric credential reset for ${user.fullName}. User must re-enroll.`, 'warning');
+  }
+
+  handleAdminDeleteCourse(courseId) {
+    const data = window.smartBioData.load();
+    const course = (data.courses || []).find(c => c.id === Number(courseId));
+    if (!course) return;
+
+    if (!confirm(`Are you sure you want to delete course ${course.code} (${course.title})?`)) return;
+
+    data.courses = data.courses.filter(c => c.id !== Number(courseId));
+    data.courseRegistrations = (data.courseRegistrations || []).filter(r => r.courseId !== Number(courseId));
+
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'COURSE_DELETE',
+      details: `Removed course ${course.code} (${course.title}) from active curriculum.`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+    this.populateLectureCourseDropdown();
+    this.renderAdminPortal();
+    this.showToast(`Deleted course ${course.code}`, 'info');
+  }
+
+  // 12. Toast UI Notification System
   showToast(message, type = 'info') {
     const container = document.getElementById('toastContainer');
     if (!container) return;

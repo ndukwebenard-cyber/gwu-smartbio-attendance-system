@@ -86,16 +86,36 @@
 /* 2. Scrollable Slide Content Body */
 .onboarding-body {
   padding: 28px 32px;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+}
+
+.onboarding-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.onboarding-body::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.onboarding-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.3);
+  border-radius: 4px;
+}
+
+.onboarding-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 242, 254, 0.6);
 }
 
 .tour-slide {
   display: none;
+  margin: auto 0;
   animation: fade-slide 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

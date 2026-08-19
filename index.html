@@ -85,6 +85,11 @@
           <h2>Lecturer Dashboard & Live Session Radar</h2>
           <p>Welcome back, <strong id="lecturerWelcomeName" class="text-primary">Dr. Olawale Adeyemi</strong> • Dept of Computer Science & Software Engineering</p>
         </div>
+        <div class="view-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-primary" onclick="smartBioApp.openCreateCourseModal()">
+            ➕ Create New Course
+          </button>
+        </div>
       </div>
 
       <!-- Live Session Banner (When Class is Active) -->
@@ -232,6 +237,9 @@
           <p>Logged in as: <strong id="classRepWelcomeName" class="text-primary">Chukwudi Eze (Class Rep)</strong> • Computer Science 400L</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="smartBioApp.openCreateCourseModal()" style="border-color: var(--primary); color: var(--primary);">
+            ➕ Create Course for Lecturer
+          </button>
           <button class="btn btn-primary" id="btnRepLaunchKiosk">
             🚀 Launch Hall Scanner Kiosk
           </button>
@@ -417,9 +425,41 @@
         </div>
       </div>
 
+      <!-- Course & Curriculum Governance Directory -->
+      <div class="glass-card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 4px;">📚 Course Allocations &amp; Ownership Governance</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">Manage course codes, credit loads, statutory thresholds and reassign faculty ownership.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="smartBioApp.openCreateCourseModal()">
+            ➕ Add New Course
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Course Code</th>
+                <th>Course Title</th>
+                <th>Department</th>
+                <th>Level</th>
+                <th>Units</th>
+                <th>Assigned Lecturer (Owner)</th>
+                <th>Min. Req.</th>
+                <th>Admin Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminCoursesTableBody">
+              <!-- Rendered via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Users & Biometric Credential Directory -->
       <div class="glass-card" style="margin-bottom: 24px;">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">👥 User & Biometric Template Directory (NDPA Compliant)</h3>
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">👥 User &amp; Biometric Template Directory (NDPA Compliant)</h3>
         <div class="table-responsive">
           <table class="data-table">
             <thead>
@@ -427,8 +467,9 @@
                 <th>Identifier / Matric</th>
                 <th>Full Name</th>
                 <th>Role</th>
-                <th>Level</th>
+                <th>Department &amp; Level</th>
                 <th>Biometric Status</th>
+                <th>Administrative Actions</th>
               </tr>
             </thead>
             <tbody id="adminUsersTableBody">
@@ -869,39 +910,47 @@
 
             <div class="form-row-2col">
               <div class="form-group">
-                <label class="form-label" for="regFullName">Full Legal Name</label>
-                <input type="text" class="form-control" id="regFullName" placeholder="e.g. Benedict Uche" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="regMatricNo">Matric No / Staff ID</label>
-                <input type="text" class="form-control font-mono" id="regMatricNo" placeholder="GWU/CSC/22/..." required>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="regEmail">Institutional Email Address</label>
-              <input type="email" class="form-control" id="regEmail" placeholder="student@gwu.edu or staff@smartbio.edu.ng" required>
-            </div>
-
-            <div class="form-row-2col">
-              <div class="form-group">
                 <label class="form-label" for="regDepartment">Academic Department</label>
-                <select class="form-control" id="regDepartment" required>
-                  <option value="1">Computer Science & Software Eng.</option>
-                  <option value="2">Cyber Security Science</option>
-                  <option value="3">Information Technology</option>
+                <select class="form-control font-bold" id="regDepartment" onchange="smartBioApp.updateRegMatricPreview()" required>
+                  <option value="1">CSC — Computer Science &amp; Software Eng.</option>
+                  <option value="2">CYB — Cyber Security Science</option>
+                  <option value="3">IFT — Information Technology</option>
                 </select>
               </div>
               <div class="form-group">
                 <label class="form-label" for="regLevel">Academic Level</label>
-                <select class="form-control" id="regLevel">
+                <select class="form-control font-bold" id="regLevel" onchange="smartBioApp.updateRegMatricPreview()">
                   <option value="400">400 Level (Final Year)</option>
                   <option value="300">300 Level</option>
                   <option value="200">200 Level</option>
                   <option value="100">100 Level</option>
-                  <option value="Faculty">Faculty Staff / Admin</option>
+                  <option value="Faculty">Faculty Staff / Academic Board</option>
                 </select>
               </div>
+            </div>
+
+            <div class="form-row-2col">
+              <div class="form-group">
+                <label class="form-label" for="regFullName">Full Legal Name</label>
+                <input type="text" class="form-control" id="regFullName" placeholder="e.g. Benedict Uche" required>
+              </div>
+              <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                  <label class="form-label" for="regMatricNo" style="margin-bottom: 0;">Institutional ID / Matric No</label>
+                  <span class="badge badge-eligible font-mono" style="font-size: 0.65rem; padding: 2px 6px;">Auto-Generated</span>
+                </div>
+                <input type="text" class="form-control font-mono font-bold" id="regMatricNo" placeholder="GWU/CSC/22/053" required>
+              </div>
+            </div>
+
+            <!-- Auto-Enrollment Helper Callout -->
+            <div id="regAutoEnrollInfoBox" style="background: rgba(0, 242, 254, 0.06); border: 1px solid var(--border-glow); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px; font-size: 0.78rem; color: var(--text-muted);">
+              💡 <strong style="color: var(--primary);">Smart Cohort Linkage:</strong> All active courses for <span id="regAutoEnrollCohortLabel" class="text-primary font-bold">CSC 400L</span> will be automatically linked to this account upon creation.
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="regEmail">Institutional Email Address</label>
+              <input type="email" class="form-control" id="regEmail" placeholder="student@student.gwu.edu or staff@smartbio.edu.ng" required>
             </div>
 
             <div class="form-row-2col">
@@ -915,15 +964,15 @@
               </div>
             </div>
 
-            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
-              <input type="checkbox" id="regEnrollBiometrics" checked style="width: 18px; height: 18px; accent-color: var(--primary);">
+            <div class="form-group" style="display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; background: rgba(255,255,255,0.02); padding: 10px; border-radius: 6px; border: 1px solid var(--border-subtle);">
+              <input type="checkbox" id="regEnrollBiometrics" checked style="width: 18px; height: 18px; accent-color: var(--primary); margin-top: 2px;">
               <label for="regEnrollBiometrics" style="font-size: 0.8rem; color: var(--text-muted); cursor: pointer;">
-                Enroll hardware WebAuthn fingerprint on first sign-in (NDPA 2023 Compliant)
+                Prompt hardware WebAuthn passkey / fingerprint enrollment on first sign-in. (If unchecked, account starts with unverified status until enrolled in Profile).
               </label>
             </div>
 
             <button type="submit" class="btn btn-success" style="width: 100%;">
-              ✓ Complete Registration
+              ✓ Complete Registration &amp; Auto-Link Courses
             </button>
           </form>
         </div>
@@ -972,6 +1021,211 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       5. USER PROFILE & BIOMETRIC ENROLLMENT MODAL
+       ========================================================================= -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">👤 Identity &amp; Biometrics</span>
+          <h3 style="margin-bottom: 0;">User Account Profile</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeProfileModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- Profile Identity Header -->
+        <div class="profile-card-header">
+          <div class="profile-avatar-large" id="profileModalAvatar">👨‍🏫</div>
+          <div class="profile-info-block">
+            <h3 id="profileModalFullName">Dr. Olawale Adeyemi</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <span class="badge badge-eligible font-bold" id="profileModalRoleBadge">LECTURER</span>
+              <span class="text-muted font-mono" id="profileModalIdentifier" style="font-size: 0.8rem;">STF/CSC/042</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Details Grid -->
+        <div class="profile-grid-2col">
+          <div class="profile-field-box">
+            <div class="profile-field-label">Institutional Email</div>
+            <div class="profile-field-val" id="profileModalEmail">o.adeyemi@smartbio.edu.ng</div>
+          </div>
+          <div class="profile-field-box">
+            <div class="profile-field-label">Academic Department</div>
+            <div class="profile-field-val" id="profileModalDepartment">Computer Science &amp; Software Eng.</div>
+          </div>
+          <div class="profile-field-box">
+            <div class="profile-field-label">Cohort / Academic Level</div>
+            <div class="profile-field-val" id="profileModalLevel">Faculty Staff / Board</div>
+          </div>
+          <div class="profile-field-box">
+            <div class="profile-field-label">Account Security Level</div>
+            <div class="profile-field-val text-success">✓ 2FA / WebAuthn Active</div>
+          </div>
+        </div>
+
+        <!-- Biometric Registration & Passkey Lifecycle Card -->
+        <div class="biometric-enrollment-card">
+          <div class="biometric-enrollment-header">
+            <div>
+              <strong style="font-size: 0.95rem;">🖲️ Hardware Biometric / Passkey Status</strong>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">NDPA 2023 Cryptographic Minutiae &amp; FIDO2 WebAuthn</div>
+            </div>
+            <span class="badge badge-eligible" id="profileModalBiometricStatusBadge">ENROLLED</span>
+          </div>
+          <div class="biometric-hash-display" id="profileModalBiometricHash">
+            SHA256:8f4c2e91b637dae15091726a84d29f03
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" id="btnProfileEnrollWebAuthn" onclick="smartBioApp.handleEnrollBiometrics('WEBAUTHN')">
+              🔐 Enroll / Test Device Passkey
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btnProfileEnrollOptical" onclick="smartBioApp.handleEnrollBiometrics('OPTICAL')">
+              🖲️ Test Optical Scanner
+            </button>
+          </div>
+        </div>
+
+        <!-- Role Context Summary Box -->
+        <div id="profileRoleSummaryBox" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 14px;">
+          <!-- Dynamically populated based on role -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="smartBioApp.closeProfileModal()">Close</button>
+        <button class="btn btn-danger" onclick="smartBioApp.closeProfileModal(); smartBioApp.handleSignOut();">
+          🚪 Switch / Sign Out
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       6. CREATE NEW COURSE MODAL (Lecturer & Class Rep Delegation)
+       ========================================================================= -->
+  <div class="modal-overlay" id="createCourseModal">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">📚 Curriculum Management</span>
+          <h3 style="margin-bottom: 0;">Create New Academic Course</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeCreateCourseModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="formCreateCourse" onsubmit="smartBioApp.handleCreateCourse(event)">
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="newCourseCode">Course Code</label>
+              <input type="text" class="form-control font-mono font-bold" id="newCourseCode" placeholder="e.g. CSC 415" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newCourseUnits">Credit Units</label>
+              <input type="number" class="form-control" id="newCourseUnits" value="3" min="1" max="6" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="newCourseTitle">Full Course Title</label>
+            <input type="text" class="form-control" id="newCourseTitle" placeholder="e.g. Cloud Security &amp; Distributed Systems" required>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="newCourseDepartment">Assigned Department</label>
+              <select class="form-control" id="newCourseDepartment" required>
+                <option value="1">Computer Science &amp; Software Eng.</option>
+                <option value="2">Cyber Security Science</option>
+                <option value="3">Information Technology</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newCourseLevel">Academic Level</label>
+              <select class="form-control" id="newCourseLevel" required>
+                <option value="400">400 Level</option>
+                <option value="300">300 Level</option>
+                <option value="200">200 Level</option>
+                <option value="100">100 Level</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="newCourseLecturer">Assigned Course Lecturer</label>
+              <select class="form-control" id="newCourseLecturer" required>
+                <option value="2">Dr. Olawale Adeyemi (STF/CSC/042)</option>
+                <option value="3">Prof. Ngozi Okoro (STF/CSC/018)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newCourseThreshold">Min. Attendance Mandate (%)</label>
+              <input type="number" class="form-control font-bold" id="newCourseThreshold" value="75" min="50" max="100" required>
+            </div>
+          </div>
+
+          <div style="background: rgba(0, 242, 254, 0.06); border: 1px solid var(--border-glow); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; font-size: 0.8rem; color: var(--text-muted);">
+            👥 <strong style="color: var(--primary);">Automatic Cohort Registration:</strong> When created, all active students registered in this Department and Level will be automatically enrolled with 0% baseline attendance tracking.
+          </div>
+
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="smartBioApp.closeCreateCourseModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">✓ Create &amp; Auto-Enroll Cohort</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       7. REASSIGN COURSE OWNERSHIP MODAL (Admin Governance)
+       ========================================================================= -->
+  <div class="modal-overlay" id="reassignCourseModal">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">👑 Course Ownership</span>
+          <h3 style="margin-bottom: 0;">Reassign Faculty Course Owner</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeReassignCourseModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="formReassignCourse" onsubmit="smartBioApp.handleSaveCourseReassignment(event)">
+          <input type="hidden" id="reassignCourseId">
+          <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span class="text-muted">Target Course:</span>
+              <strong id="reassignCourseCodeTitle" class="text-primary">CSC 401 — Advanced Software Engineering</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span class="text-muted">Current Lecturer:</span>
+              <span id="reassignCurrentLecturerName" class="font-bold">Dr. Olawale Adeyemi</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reassignNewLecturerSelect">Select New Faculty Owner</label>
+            <select class="form-control font-bold" id="reassignNewLecturerSelect" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reassignReasonInput">Administrative Justification / Reason</label>
+            <input type="text" class="form-control" id="reassignReasonInput" value="HOD Departmental Course Reallocation (2025/2026)" required>
+          </div>
+
+          <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="smartBioApp.closeReassignCourseModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">✓ Confirm Reassignment &amp; Transfer</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

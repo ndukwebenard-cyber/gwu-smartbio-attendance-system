@@ -277,7 +277,7 @@
 
 .course-gauge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -291,6 +291,15 @@
   flex-direction: column;
   justify-content: space-between;
   position: relative;
+  min-width: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.course-gauge-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
 }
 
 .gauge-header {
@@ -298,18 +307,29 @@
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 12px;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gauge-header-info {
+  min-width: 0;
+  flex: 1;
 }
 
 .gauge-header h3 {
   font-size: 1.1rem;
   font-weight: 800;
+  margin-bottom: 3px;
+  color: var(--text-main);
 }
 
-.gauge-header span {
-  font-size: 0.78rem;
+.gauge-header span.course-title-label {
+  font-size: 0.8rem;
   color: var(--text-muted);
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
+  word-break: break-word;
+  display: block;
 }
 
 .progress-bar-container {
@@ -926,3 +946,106 @@
     print-color-adjust: exact !important;
   }
 }
+
+/* ==========================================================================
+   USER PROFILE MODAL & BIOMETRIC ENROLLMENT STYLES
+   ========================================================================== */
+
+.profile-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-surface-elevated);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glass);
+  margin-bottom: 20px;
+}
+
+.profile-avatar-large {
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  border: 2px solid var(--primary);
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.25);
+  flex-shrink: 0;
+}
+
+.profile-info-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-info-block h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.profile-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 540px) {
+  .profile-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profile-field-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.profile-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.profile-field-val {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-main);
+  word-break: break-all;
+}
+
+.biometric-enrollment-card {
+  background: linear-gradient(135deg, rgba(0, 242, 254, 0.05) 0%, rgba(79, 172, 254, 0.08) 100%);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.biometric-enrollment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.biometric-hash-display {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--primary);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
