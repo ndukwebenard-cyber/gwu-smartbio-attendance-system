@@ -281,17 +281,34 @@ class SmartBioApp {
     });
   }
 
-  openCloudModal() {
-    const modal = document.getElementById('cloudConfigModal');
-    if (modal) {
-      modal.classList.add('active');
-      if (window.smartBioCloud) window.smartBioCloud.updateSyncUI();
+  // =========================================================================
+  // Central Modal Manager (Scroll-locks body & manages active overlay state)
+  // =========================================================================
+  openModal(modalId) {
+    const el = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (el) {
+      el.classList.add('active');
+      document.body.classList.add('modal-open');
     }
   }
 
+  closeModal(modalId) {
+    const el = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (el) {
+      el.classList.remove('active');
+      if (!document.querySelector('.modal-overlay.active')) {
+        document.body.classList.remove('modal-open');
+      }
+    }
+  }
+
+  openCloudModal() {
+    this.openModal('cloudConfigModal');
+    if (window.smartBioCloud) window.smartBioCloud.updateSyncUI();
+  }
+
   closeCloudModal() {
-    const modal = document.getElementById('cloudConfigModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('cloudConfigModal');
   }
 
   async reconnectCloud() {
@@ -317,17 +334,13 @@ class SmartBioApp {
   }
 
   openAuthModal(view = 'LOGIN') {
-    const modal = document.getElementById('authModal');
-    if (modal) {
-      this.populateDepartmentDropdowns();
-      modal.classList.add('active');
-      this.switchAuthView(view);
-    }
+    this.populateDepartmentDropdowns();
+    this.openModal('authModal');
+    this.switchAuthView(view);
   }
 
   closeAuthModal() {
-    const modal = document.getElementById('authModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('authModal');
   }
 
   switchAuthView(viewName) {
@@ -778,7 +791,6 @@ class SmartBioApp {
     if (!flag) return;
     const student = window.smartBioData.getUserById(flag.studentId);
 
-    const modal = document.getElementById('flagResolveModal');
     const nameEl = document.getElementById('resolveStudentName');
     const matricEl = document.getElementById('resolveStudentMatric');
     const reasonEl = document.getElementById('resolveFlagReason');
@@ -789,12 +801,11 @@ class SmartBioApp {
     if (reasonEl) reasonEl.innerText = flag.flagReason;
     if (flagIdInput) flagIdInput.value = flag.id;
 
-    if (modal) modal.classList.add('active');
+    this.openModal('flagResolveModal');
   }
 
   closeResolveModal() {
-    const modal = document.getElementById('flagResolveModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('flagResolveModal');
   }
 
   submitResolveOverride(action) {
@@ -873,11 +884,16 @@ class SmartBioApp {
   }
 
   renderClassRepPortal() {
-    const rep = window.smartBioData.getUserById(6) || { fullName: 'Chukwudi Eze' };
+    const user = this.authenticatedUser;
+    const rep = (user && user.role === 'CLASS_REP') ? user : (window.smartBioData.getUserById(6) || { fullName: 'Chukwudi Eze', departmentId: 1, academicLevel: '400' });
     const nameEl = document.getElementById('classRepWelcomeName');
     if (nameEl) nameEl.innerText = `${rep.fullName} (Class Rep)`;
 
     const data = window.smartBioData.load();
+    const dept = (data.departments || []).find(d => d.id === rep.departmentId) || { name: 'Computer Science & Software Eng.' };
+    const cohortEl = document.getElementById('classRepCohortBadge');
+    if (cohortEl) cohortEl.innerText = `${dept.name} ${rep.academicLevel ? rep.academicLevel + 'L' : '400L'}`;
+
     const students = data.users.filter(u => u.role === 'STUDENT' || u.role === 'CLASS_REP');
     
     // Stats calculation
@@ -1024,18 +1040,20 @@ class SmartBioApp {
   }
 
   openDocketModal() {
-    const student = window.smartBioData.getUserById(this.currentUserId);
+    const data = window.smartBioData.load();
+    let student = window.smartBioData.getUserById(this.currentUserId);
+    if (!student || (student.role !== 'STUDENT' && student.role !== 'CLASS_REP')) {
+      student = (data.users || []).find(u => u.role === 'STUDENT') || { id: 4 };
+    }
     const container = document.getElementById('docketRenderContainer');
     if (container && student) {
       container.innerHTML = window.smartBioCompliance.renderClearanceDocket(student.id);
     }
-    const modal = document.getElementById('docketModal');
-    if (modal) modal.classList.add('active');
+    this.openModal('docketModal');
   }
 
   closeDocketModal() {
-    const modal = document.getElementById('docketModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('docketModal');
   }
 
   // 5. Admin Portal Logic
@@ -1316,16 +1334,6 @@ class SmartBioApp {
     if (btnClose) btnClose.addEventListener('click', () => this.closeCloudModal());
   }
 
-  openCloudModal() {
-    const modal = document.getElementById('cloudConfigModal');
-    if (modal) modal.classList.add('active');
-  }
-
-  closeCloudModal() {
-    const modal = document.getElementById('cloudConfigModal');
-    if (modal) modal.classList.remove('active');
-  }
-
   // 8. Dynamic Department & Course Select Populators
   populateDepartmentDropdowns() {
     const data = window.smartBioData.load();
@@ -1472,12 +1480,11 @@ class SmartBioApp {
       }
     }
 
-    modal.classList.add('active');
+    this.openModal('profileModal');
   }
 
   closeProfileModal() {
-    const modal = document.getElementById('profileModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('profileModal');
   }
 
   async handleEnrollBiometrics(mode = 'WEBAUTHN') {
@@ -1574,25 +1581,21 @@ class SmartBioApp {
   }
 
   openCreateDeptModal() {
-    const modal = document.getElementById('createDeptModal');
-    if (modal) {
-      document.getElementById('formCreateDept').reset();
-      document.getElementById('deptPreviewBox').innerText = 'GWU/???/22/001';
-      modal.classList.add('active');
-      // live preview on code input
-      const codeInput = document.getElementById('deptCodeInput');
-      if (codeInput) {
-        codeInput.oninput = () => {
-          const c = codeInput.value.toUpperCase() || '???';
-          document.getElementById('deptPreviewBox').innerText = `GWU/${c}/22/001`;
-        };
-      }
+    document.getElementById('formCreateDept').reset();
+    document.getElementById('deptPreviewBox').innerText = 'GWU/???/22/001';
+    this.openModal('createDeptModal');
+    // live preview on code input
+    const codeInput = document.getElementById('deptCodeInput');
+    if (codeInput) {
+      codeInput.oninput = () => {
+        const c = codeInput.value.toUpperCase() || '???';
+        document.getElementById('deptPreviewBox').innerText = `GWU/${c}/22/001`;
+      };
     }
   }
 
   closeCreateDeptModal() {
-    const modal = document.getElementById('createDeptModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('createDeptModal');
   }
 
   handleCreateDept(e) {
@@ -1678,12 +1681,11 @@ class SmartBioApp {
       levelSelect.value = currentUser.academicLevel;
     }
 
-    modal.classList.add('active');
+    this.openModal('createCourseModal');
   }
 
   closeCreateCourseModal() {
-    const modal = document.getElementById('createCourseModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('createCourseModal');
   }
 
   async handleCreateCourse(e) {
@@ -1799,13 +1801,11 @@ class SmartBioApp {
         </option>
       `).join('');
     }
-
-    modal.classList.add('active');
+    this.openModal('reassignCourseModal');
   }
 
   closeReassignCourseModal() {
-    const modal = document.getElementById('reassignCourseModal');
-    if (modal) modal.classList.remove('active');
+    this.closeModal('reassignCourseModal');
   }
 
   async handleSaveCourseReassignment(e) {

@@ -411,6 +411,12 @@ html, body {
    MODALS — Mobile-sheet style on small screens
    ========================================================================== */
 
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -425,6 +431,8 @@ html, body {
   opacity: 0;
   pointer-events: none;
   transition: var(--transition-normal);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-overlay.active {
@@ -432,22 +440,35 @@ html, body {
   pointer-events: all;
 }
 
-.modal-dialog {
+.modal-dialog,
+.modal-container {
   background: var(--bg-surface);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 680px;
-  max-height: calc(100vh - 48px);
+  max-height: min(90vh, calc(100dvh - 32px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
   transform: translateY(20px) scale(0.96);
   transition: var(--transition-normal);
+  margin: auto;
 }
 
-.modal-overlay.active .modal-dialog {
+.auth-subview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: min(90vh, calc(100dvh - 32px));
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.modal-overlay.active .modal-dialog,
+.modal-overlay.active .modal-container {
   transform: translateY(0) scale(1);
 }
 
