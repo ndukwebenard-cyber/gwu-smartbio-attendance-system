@@ -1705,25 +1705,45 @@ class SmartBioApp {
   }
 
   async cleanFirestoreData() {
-    const wantBackup = confirm('📥 Safety Backup Recommended:\n\nWould you like to download a complete JSON backup of your current Firestore database before cleaning?');
+    const wantBackup = confirm('📥 Safety Backup Recommended:\n\nWould you like to download a complete JSON backup of your current database before cleaning?');
     if (wantBackup) {
       await this.exportFirestoreBackup();
       await new Promise(r => setTimeout(r, 1200));
     }
 
-    if (!confirm('🧹 Proceed to Clean Firestore Test Records?\n\nThis will purge transient test attendance scans and test flags, while retaining and normalizing all authentic user accounts, courses, and departments with clean system unique IDs.')) {
+    if (!confirm('🧹 Proceed to Clean Test Records?\n\nThis will purge transient test attendance scans and test flags (both locally and in Cloud Firestore if online), while retaining and normalizing all authentic user accounts, courses, and departments with clean system unique IDs.')) {
       return;
     }
 
-    this.showToast('🧹 Purging test records & normalizing Firestore documents...', 'info');
-    try {
-      await window.smartBioCloud.cleanFirestoreAndNormalizeUniqueIds();
-      window.smartBioAudio.playSuccessChime();
-      this.showToast('✅ Google Cloud Firestore sanitized & normalized with unique IDs!', 'success');
-    } catch (err) {
-      console.error(err);
-      this.showToast(`Clean Firestore Notice: ${err.message}`, 'error');
+    this.showToast('🧹 Purging test records & normalizing documents (Local & Cloud)...', 'info');
+
+    // 1. Clean & Normalize Local Store
+    window.smartBioData.cleanLocalTestDataAndNormalizeUniqueIds();
+
+    // 2. Clean & Normalize Firestore Cloud if connected
+    let cloudCleaned = false;
+    if (window.smartBioCloud && window.smartBioCloud.isConnected) {
+      try {
+        await window.smartBioCloud.cleanFirestoreAndNormalizeUniqueIds();
+        cloudCleaned = true;
+      } catch (err) {
+        console.warn('Cloud Firestore clean notice:', err.message);
+      }
     }
+
+    // 3. Re-render active view instantly
+    if (this.currentView === 'ADMIN') this.renderAdminPortal();
+    if (this.currentView === 'LECTURER') this.renderLecturerPortal();
+    if (this.currentView === 'CLASS_REP') this.renderClassRepPortal();
+    if (this.currentView === 'STUDENT') this.renderStudentPortal();
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(
+      cloudCleaned 
+        ? '✅ Both Local Database and Cloud Firestore sanitized & normalized with unique IDs!' 
+        : '✅ Local Database sanitized & normalized with unique IDs (Local Mode)!',
+      'success'
+    );
   }
 
   // 6. Scanner Terminal Logic

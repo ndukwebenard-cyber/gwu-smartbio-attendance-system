@@ -365,6 +365,55 @@ class DataStore {
     this.save();
   }
 
+  // Purge test insertions (attendance & flags) and normalize authentic datasets with clean system unique IDs in local store
+  cleanLocalTestDataAndNormalizeUniqueIds() {
+    // 1. Purge transient test attendance records
+    this.data.attendanceRecords = [];
+
+    // 2. Purge transient test flagged exceptions
+    this.data.flaggedExceptions = [];
+
+    // 3. Normalize permanent datasets with unified system-wide unique IDs
+    // Users
+    this.data.users = (this.data.users || []).map(u => ({
+      ...u,
+      systemUid: `GWU-USR-${String(u.id).padStart(4, '0')}`,
+      updatedAt: new Date().toISOString()
+    }));
+
+    // Departments
+    this.data.departments = (this.data.departments || []).map(d => ({
+      ...d,
+      systemUid: `GWU-DEPT-${d.code}`,
+      updatedAt: new Date().toISOString()
+    }));
+
+    // Courses
+    this.data.courses = (this.data.courses || []).map(c => ({
+      ...c,
+      systemUid: `GWU-CRS-${c.code.replace(/\s+/g, '')}`,
+      updatedAt: new Date().toISOString()
+    }));
+
+    // 4. Record immutable audit log
+    this.addAuditLog({
+      actorId: null,
+      actor: 'Administrator (System)',
+      action: 'DATA_CLEANSE_NORMALIZATION',
+      details: 'Purged transient test attendance and flagged exceptions. Normalized unique IDs across all authentic users, departments, and courses.',
+      time: new Date().toLocaleString()
+    });
+
+    this.save();
+
+    // 5. Clear transient active lecture session from localStorage
+    try {
+      localStorage.removeItem('smartbio_active_session');
+    } catch (e) {}
+
+    return this.data;
+  }
+
   // Export entire DB as standard SQL dump
   exportSQLDump() {
     let sql = `-- SMARTBIO ATTENDANCE SYSTEM SQL DUMP\n-- Exported At: ${new Date().toISOString()}\n\n`;
