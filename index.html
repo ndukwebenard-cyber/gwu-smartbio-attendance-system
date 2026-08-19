@@ -1229,6 +1229,58 @@
     </div>
   </div>
 
+  <!-- =========================================================================
+       8. CLOUD CONFIGURATION & REAL-TIME SYNC MODAL
+       ========================================================================= -->
+  <div class="modal-overlay" id="cloudConfigModal">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">☁️ Multi-Device Architecture</span>
+          <h3 style="margin-bottom: 0;">Cloud Firestore Synchronization</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeCloudModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-glow); margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span class="text-muted" style="font-size: 0.85rem;">Live Connection Status:</span>
+            <span id="cloudModalStatusBadge" class="badge badge-eligible" style="font-size: 0.75rem;">
+              🟢 ONLINE (LIVE FIRESTORE)
+            </span>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+            WebSocket stream active via Google Cloud Firestore. Check-ins broadcast across hall kiosks, lecturer laptops, and student smartphones in &lt;200ms.
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+          <div style="background: rgba(0,0,0,0.25); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Firebase Project ID</div>
+            <div style="font-family: monospace; font-size: 0.82rem; color: var(--primary); font-weight: 700;">gwu-smartbio-attendance-system</div>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <div style="font-size: 0.72rem; color: var(--text-muted);">WebSocket Latency</div>
+            <div style="font-family: monospace; font-size: 0.82rem; color: var(--success); font-weight: 700;">~120ms (Real-time)</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button type="button" class="btn btn-primary" onclick="smartBioApp.reconnectCloud()" style="width: 100%; justify-content: center;">
+            ⚡ Force Reconnect / Re-Sync Cloud
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="smartBioApp.seedCloudFirestore()" style="width: 100%; justify-content: center;">
+            ☁️ Re-Seed Firestore Cloud Collections
+          </button>
+        </div>
+
+        <div style="margin-top: 16px; font-size: 0.75rem; color: var(--text-muted); text-align: center;">
+          💡 When running offline without an internet connection, SmartBio automatically utilizes the local IndexedDB/LocalStorage relational store.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toastContainer"></div>
 

@@ -79,20 +79,20 @@ class CloudSyncEngine {
         this.db = firebase.firestore();
         this.auth = firebase.auth();
         this.isConnected = true;
-        this.updateSyncUI('LIVE CLOUD (FIREBASE)');
+        this.updateSyncUI('Online');
         this.setupRealtimeListeners();
         console.log('⚡ Firebase Cloud Firestore connected to', this.config.projectId);
         return true;
       } else {
         console.warn('Firebase SDK not yet loaded or offline');
         this.isConnected = false;
-        this.updateSyncUI('OFFLINE / LOCAL MODE');
+        this.updateSyncUI('Local Mode');
         return false;
       }
     } catch (e) {
       console.error('Firebase initialization error:', e);
       this.isConnected = false;
-      this.updateSyncUI('OFFLINE / LOCAL MODE');
+      this.updateSyncUI('Local Mode');
       return false;
     }
   }
@@ -304,13 +304,19 @@ class CloudSyncEngine {
   updateSyncUI(statusText) {
     const el = document.getElementById('cloudStatusText');
     const dot = document.getElementById('cloudSyncDot');
-    if (el) el.innerText = statusText;
+    const modalBadge = document.getElementById('cloudModalStatusBadge');
+
+    if (el) el.innerText = this.isConnected ? 'Online' : 'Local Mode';
     if (dot) {
       if (this.isConnected) {
         dot.classList.remove('offline');
       } else {
         dot.classList.add('offline');
       }
+    }
+    if (modalBadge) {
+      modalBadge.className = `badge ${this.isConnected ? 'badge-eligible' : 'badge-at-risk'}`;
+      modalBadge.innerText = this.isConnected ? '🟢 ONLINE (LIVE FIRESTORE)' : '🟠 LOCAL STORAGE (OFFLINE)';
     }
   }
 }

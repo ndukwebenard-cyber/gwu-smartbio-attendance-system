@@ -255,7 +255,7 @@ class SmartBioApp {
     const btnAuth = document.getElementById('btnNavAuth');
     if (btnAuth) {
       btnAuth.addEventListener('click', () => {
-        if (this.currentUserId) {
+        if (this.authenticatedUser) {
           this.openProfileModal();
         } else {
           this.openAuthModal('LOGIN');
@@ -265,7 +265,41 @@ class SmartBioApp {
   }
 
   // =========================================================================
-  // 1b. AUTHENTICATION & ACCESS CONTROL METHODS
+  // 1b. CLOUD SYNC & DIAGNOSTICS MODAL
+  // =========================================================================
+  bindCloudModalEvents() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closeCloudModal();
+    });
+  }
+
+  openCloudModal() {
+    const modal = document.getElementById('cloudConfigModal');
+    if (modal) {
+      modal.classList.add('active');
+      if (window.smartBioCloud) window.smartBioCloud.updateSyncUI();
+    }
+  }
+
+  closeCloudModal() {
+    const modal = document.getElementById('cloudConfigModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  async reconnectCloud() {
+    this.showToast('Connecting to Google Cloud Firestore...', 'info');
+    const success = await window.smartBioCloud.initializeFirebase();
+    if (success) {
+      window.smartBioAudio.playSuccessChime();
+      this.showToast('🟢 Successfully connected to Cloud Firestore (Real-Time)', 'success');
+    } else {
+      window.smartBioAudio.playFlaggedWarning();
+      this.showToast('Offline fallback: Operating with Local Relational Store', 'warning');
+    }
+  }
+
+  // =========================================================================
+  // 1c. AUTHENTICATION & ACCESS CONTROL METHODS
   // =========================================================================
   bindAuthEvents() {
     // Escape key to close auth modal
