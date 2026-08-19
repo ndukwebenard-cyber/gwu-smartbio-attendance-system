@@ -133,7 +133,14 @@ class CloudSyncEngine {
             const sessionData = doc.data();
             window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: sessionData }));
           } else {
-            window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null }));
+            // Only broadcast end if no active session is persisted in local storage
+            let localSess = null;
+            try {
+              localSess = localStorage.getItem('smartbio_active_session');
+            } catch (e) {}
+            if (!localSess) {
+              window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null, isExplicitEnd: true }));
+            }
           }
         }, (error) => {
           console.warn('Firestore active session listener notice:', error.message);

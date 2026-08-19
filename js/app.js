@@ -658,6 +658,9 @@ class SmartBioApp {
       const sessionData = e.detail;
       if (sessionData && sessionData.status === 'ACTIVE') {
         this.activeLectureSession = sessionData;
+        try {
+          localStorage.setItem('smartbio_active_session', JSON.stringify(sessionData));
+        } catch (err) {}
         this.renderActiveSessionUI(sessionData);
 
         // If current role is student or class rep, notify with gentle alert
@@ -666,8 +669,11 @@ class SmartBioApp {
           const course = (window.smartBioData.load().courses || []).find(c => c.id === sessionData.courseId) || { code: 'CSC 401' };
           this.showToast(`🔔 Live Lecture Alert: ${course.code} is now in session at ${sessionData.venue}!`, 'info');
         }
-      } else {
+      } else if (e.isExplicitEnd || (!sessionData && !this.activeLectureSession)) {
         this.activeLectureSession = null;
+        try {
+          localStorage.removeItem('smartbio_active_session');
+        } catch (err) {}
         if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
         const banner = document.getElementById('liveSessionActiveBanner');
         const formBox = document.getElementById('lectureSessionConfigBox');
@@ -855,7 +861,7 @@ class SmartBioApp {
     } catch (e) {}
 
     window.smartBioCloud.endActiveSessionCloud();
-    window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null }));
+    window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null, isExplicitEnd: true }));
     this.activeLectureSession = null;
 
     const banner = document.getElementById('liveSessionActiveBanner');
@@ -887,6 +893,10 @@ class SmartBioApp {
     if (deptEl) {
       const dept = (data.departments || []).find(d => d.id === lecturer.departmentId) || { name: 'Computer Science & Software Engineering' };
       deptEl.innerText = `Dept of ${dept.name}`;
+    }
+
+    if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
+      this.renderActiveSessionUI(this.activeLectureSession);
     }
 
     this.populateDefaulterCourseDropdown();
@@ -1185,6 +1195,10 @@ class SmartBioApp {
       html = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No students enrolled in ${course.code} yet.</td></tr>`;
     }
 
+    if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
+      this.updateRoleSessionBanners(this.activeLectureSession);
+    }
+
     const totalEnrolledEl = document.getElementById('repStatEnrolled');
     const totalPresentEl = document.getElementById('repStatPresent');
     const totalAtRiskEl = document.getElementById('repStatAtRisk');
@@ -1287,6 +1301,10 @@ class SmartBioApp {
         `;
       });
       gaugeGrid.innerHTML = html;
+    }
+
+    if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
+      this.updateRoleSessionBanners(this.activeLectureSession);
     }
 
     // Populate course dropdown for history & render lecture log
