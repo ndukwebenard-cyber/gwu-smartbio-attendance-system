@@ -73,11 +73,35 @@ class CloudSyncEngine {
       const sdkReady = await this.ensureFirebaseSDK();
 
       if (window.firebase && window.firebase.firestore) {
+        // Properly handle re-initialization: reuse existing app or initialize fresh
         if (!firebase.apps.length) {
           firebase.initializeApp(this.config);
+        } else {
+          // If config changed (e.g. user updated Firebase config), re-init with a new app
+          try {
+            const existingApp = firebase.apps[0];
+            if (existingApp.options.projectId !== this.config.projectId) {
+              await existingApp.delete();
+              firebase.initializeApp(this.config);
+            }
+          } catch (reiErr) {
+            console.warn('Firebase app reuse notice:', reiErr.message);
+          }
         }
+
         this.db = firebase.firestore();
         this.auth = firebase.auth();
+
+        // Verify connection by pinging Firestore
+        try {
+          await this.db.collection('_ping').doc('ping').get();
+        } catch (pingErr) {
+          // Ignore 'Not found' (normal) but fail on auth/network errors
+          if (pingErr.code && pingErr.code !== 'not-found') {
+            throw pingErr;
+          }
+        }
+
         this.isConnected = true;
         this.updateSyncUI('Online');
         this.setupRealtimeListeners();
@@ -94,6 +118,79 @@ class CloudSyncEngine {
       this.isConnected = false;
       this.updateSyncUI('Local Mode');
       return false;
+    }
+  }
+
+  // After reconnect: push all locally accumulated data to Firestore Cloud
+  async syncLocalDataToCloud() {
+    if (!this.isConnected || !this.db) return { synced: 0, skipped: 0 };
+
+    const data = window.smartBioData.load();
+    let synced = 0, skipped = 0;
+
+    try {
+      const batch = this.db.batch();
+
+      // 1. Sync Users
+      (data.users || []).forEach(u => {
+        batch.set(this.db.collection('users').doc(String(u.id)), {
+          ...u,
+          systemUid: `GWU-USR-${String(u.id).padStart(4, '0')}`,
+          syncedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        synced++;
+      });
+
+      // 2. Sync Departments
+      (data.departments || []).forEach(d => {
+        batch.set(this.db.collection('departments').doc(String(d.id)), {
+          ...d,
+          systemUid: `GWU-DEPT-${d.code}`,
+          syncedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        synced++;
+      });
+
+      // 3. Sync Courses
+      (data.courses || []).forEach(c => {
+        batch.set(this.db.collection('courses').doc(String(c.id)), {
+          ...c,
+          systemUid: `GWU-CRS-${c.code.replace(/\s+/g, '')}`,
+          syncedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        synced++;
+      });
+
+      // 4. Sync attendance records accumulated while offline
+      for (const a of (data.attendanceRecords || [])) {
+        const ref = this.db.collection('attendance_records').doc(String(a.id));
+        const existing = await ref.get();
+        if (!existing.exists) {
+          batch.set(ref, { ...a, syncedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          synced++;
+        } else {
+          skipped++;
+        }
+      }
+
+      // 5. Sync flagged exceptions accumulated while offline
+      for (const f of (data.flaggedExceptions || [])) {
+        const ref = this.db.collection('flagged_exceptions').doc(String(f.id));
+        const existing = await ref.get();
+        if (!existing.exists) {
+          batch.set(ref, { ...f, syncedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          synced++;
+        } else {
+          skipped++;
+        }
+      }
+
+      await batch.commit();
+      console.log(`✅ Sync complete: ${synced} documents uploaded, ${skipped} already existed.`);
+      return { synced, skipped };
+    } catch (err) {
+      console.error('Sync local to cloud error:', err);
+      throw err;
     }
   }
 

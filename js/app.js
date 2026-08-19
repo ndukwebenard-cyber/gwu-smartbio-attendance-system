@@ -391,6 +391,30 @@ class SmartBioApp {
   openCloudModal() {
     this.openModal('cloudConfigModal');
     if (window.smartBioCloud) window.smartBioCloud.updateSyncUI();
+
+    // Update sync mode label
+    const syncModeLabel = document.getElementById('cloudSyncModeLabel');
+    if (syncModeLabel) {
+      syncModeLabel.innerText = window.smartBioCloud && window.smartBioCloud.isConnected
+        ? 'Real-Time WebSocket' : 'Local Storage Mode';
+      syncModeLabel.style.color = window.smartBioCloud && window.smartBioCloud.isConnected
+        ? 'var(--success)' : 'var(--warning)';
+    }
+
+    // Show offline queue indicator with counts
+    const data = window.smartBioData.load();
+    const pendingAttendance = (data.attendanceRecords || []).length;
+    const pendingFlags = (data.flaggedExceptions || []).length;
+    const queueBox = document.getElementById('cloudLocalQueueBox');
+    const queueText = document.getElementById('cloudLocalQueueText');
+
+    if (!window.smartBioCloud.isConnected && (pendingAttendance > 0 || pendingFlags > 0)) {
+      if (queueBox) queueBox.style.display = 'block';
+      if (queueText) queueText.innerText =
+        `${pendingAttendance} attendance record(s) and ${pendingFlags} flagged exception(s) accumulated offline. Click Reconnect to upload them to Firestore.`;
+    } else {
+      if (queueBox) queueBox.style.display = 'none';
+    }
   }
 
   closeCloudModal() {
@@ -398,14 +422,42 @@ class SmartBioApp {
   }
 
   async reconnectCloud() {
-    this.showToast('Connecting to Google Cloud Firestore...', 'info');
+    this.showToast('🔄 Attempting to connect to Google Cloud Firestore...', 'info');
+    const btn = document.getElementById('btnReconnectCloud');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '⏳ Connecting...';
+    }
+
     const success = await window.smartBioCloud.initializeFirebase();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '🔌 Force Reconnect / Re-Sync';
+    }
+
     if (success) {
       window.smartBioAudio.playSuccessChime();
-      this.showToast('🟢 Successfully connected to Cloud Firestore (Real-Time)', 'success');
+      this.showToast('🟢 Connected to Cloud Firestore! Checking for locally accumulated offline data...', 'success');
+      window.smartBioCloud.updateSyncUI();
+
+      // Offer to sync locally accumulated offline data up to Firestore
+      await new Promise(r => setTimeout(r, 800));
+      try {
+        const result = await window.smartBioCloud.syncLocalDataToCloud();
+        if (result && result.synced > 0) {
+          this.showToast(`☁️ Cloud Sync Complete: ${result.synced} offline records uploaded to Firestore (${result.skipped} already existed).`, 'success');
+        } else {
+          this.showToast('✅ Cloud is up-to-date. No new offline records to sync.', 'info');
+        }
+      } catch (syncErr) {
+        console.warn('Sync notice:', syncErr.message);
+        this.showToast('⚠️ Connected but offline sync notice: ' + syncErr.message, 'warning');
+      }
     } else {
       window.smartBioAudio.playFlaggedWarning();
-      this.showToast('Offline fallback: Operating with Local Relational Store', 'warning');
+      this.showToast('⚠️ Could not reach Cloud Firestore. Still in Local Mode. Check your network or Firebase project settings.', 'warning');
+      window.smartBioCloud.updateSyncUI();
     }
   }
 
