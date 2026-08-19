@@ -37,6 +37,7 @@ class SmartBioApp {
     this.bindCloudModalEvents();
     this.listenToGlobalEvents();
 
+    this.populateDepartmentDropdowns();
     this.populateLectureCourseDropdown();
     this.updateRegMatricPreview();
 
@@ -318,6 +319,7 @@ class SmartBioApp {
   openAuthModal(view = 'LOGIN') {
     const modal = document.getElementById('authModal');
     if (modal) {
+      this.populateDepartmentDropdowns();
       modal.classList.add('active');
       this.switchAuthView(view);
     }
@@ -334,7 +336,13 @@ class SmartBioApp {
     const resetView = document.getElementById('authResetView');
 
     if (signInView) signInView.style.display = viewName === 'LOGIN' ? 'block' : 'none';
-    if (registerView) registerView.style.display = viewName === 'REGISTER' ? 'block' : 'none';
+    if (registerView) {
+      registerView.style.display = viewName === 'REGISTER' ? 'block' : 'none';
+      if (viewName === 'REGISTER') {
+        this.populateDepartmentDropdowns();
+        this.updateRegMatricPreview();
+      }
+    }
     if (resetView) resetView.style.display = viewName === 'RESET' ? 'block' : 'none';
   }
 
@@ -1318,7 +1326,32 @@ class SmartBioApp {
     if (modal) modal.classList.remove('active');
   }
 
-  // 8. Dynamic Course Select Populator
+  // 8. Dynamic Department & Course Select Populators
+  populateDepartmentDropdowns() {
+    const data = window.smartBioData.load();
+    const departments = data.departments || [];
+
+    // 1. Sign Up / Registration Department Select
+    const regDept = document.getElementById('regDepartment');
+    if (regDept) {
+      const currentVal = regDept.value;
+      regDept.innerHTML = departments.map(d => `<option value="${d.id}">${d.code} — ${d.name}</option>`).join('');
+      if (currentVal && departments.some(d => String(d.id) === String(currentVal))) {
+        regDept.value = currentVal;
+      }
+    }
+
+    // 2. Course Creation Modal Department Select
+    const courseDept = document.getElementById('newCourseDepartment');
+    if (courseDept) {
+      const currentVal = courseDept.value;
+      courseDept.innerHTML = departments.map(d => `<option value="${d.id}">${d.code} — ${d.name}</option>`).join('');
+      if (currentVal && departments.some(d => String(d.id) === String(currentVal))) {
+        courseDept.value = currentVal;
+      }
+    }
+  }
+
   populateLectureCourseDropdown() {
     const select = document.getElementById('lectureCourseSelect');
     if (!select) return;
@@ -1581,14 +1614,9 @@ class SmartBioApp {
     data.departments = depts;
     window.smartBioData.save(data);
 
-    // Also update regDepartment select so newly created dept is immediately available
-    const regDept = document.getElementById('regDepartment');
-    if (regDept) {
-      const opt = document.createElement('option');
-      opt.value = String(newId);
-      opt.textContent = `${code} — ${name}`;
-      regDept.appendChild(opt);
-    }
+    // Dynamically refresh department dropdowns across all modals & views
+    this.populateDepartmentDropdowns();
+    this.updateRegMatricPreview();
 
     this.closeCreateDeptModal();
     this.renderAdminDepartments(data);
@@ -1611,6 +1639,8 @@ class SmartBioApp {
 
     data.departments = data.departments.filter(d => d.id !== deptId);
     window.smartBioData.save(data);
+    this.populateDepartmentDropdowns();
+    this.updateRegMatricPreview();
     this.renderAdminDepartments(data);
     this.writeAuditLog('DEPT_DELETED', `Department ${dept.code} (${dept.name}) deleted by admin`);
     this.showToast(`🗑️ Department ${dept.code} deleted.`, 'info');
