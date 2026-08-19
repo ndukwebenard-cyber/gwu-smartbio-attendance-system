@@ -9,6 +9,7 @@
   --bg-base: #0a0e17;
   --bg-surface: #111827;
   --bg-surface-elevated: #1a2234;
+  --bg-input: #1a2234;
   --bg-glass: rgba(17, 24, 39, 0.75);
   --bg-glass-card: rgba(26, 34, 52, 0.65);
   --bg-glass-hover: rgba(37, 49, 74, 0.85);
@@ -569,7 +570,7 @@ body.modal-open {
 .form-control {
   width: 100%;
   padding: 10px 14px;
-  background: var(--bg-input);
+  background-color: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-main);
@@ -623,13 +624,35 @@ body.modal-open {
   box-shadow: 0 0 0 3px rgba(0, 242, 254, 0.15);
 }
 
-select.form-control {
+select.form-control,
+select {
+  background-color: var(--bg-input) !important;
+  color: var(--text-main) !important;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-right: 36px;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20' fill='%2300f2fe'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 14px 14px !important;
+  padding-right: 40px !important;
+  cursor: pointer;
+}
+
+select.form-control option,
+select option,
+select optgroup {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  font-size: 0.9rem;
+  padding: 10px 14px;
+}
+
+select.form-control option:checked,
+select option:checked {
+  background-color: #1e293b !important;
+  color: #00f2fe !important;
+  font-weight: 700;
 }
 
 /* ==========================================================================
