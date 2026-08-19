@@ -92,6 +92,7 @@ The repository contains a full suite of technical architecture specifications, d
 | **🏗️ Technical Architecture Specification** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Multi-tier topology, service layers, real-time sync, and sequence diagrams. |
 | **📊 Data Model & Schema Specification** | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Entity-Relationship schema, Firestore collection definitions, and relational integrity. |
 | **🧪 Automated Test & Verification Suite** | [`docs/TESTING.md`](docs/TESTING.md) | 38 automated unit, integration, RBAC, and cryptographic signature assertions. |
+| **📋 57-Test Master Verification Checklist** | [`docs/VERIFICATION_CHECKLIST.md`](docs/VERIFICATION_CHECKLIST.md) | Printable/editable test checklist with PASS/FAIL checkmarks & observation note fields. |
 | **🎙️ Project Defense Presentation Guide** | [`docs/DEFENSE_DEMO.md`](docs/DEFENSE_DEMO.md) | Word-for-word 5-minute presentation pitch, role demos, and adversarial security tests. |
 | **🔑 Credentials & Passcodes Roster** | [`docs/ACCOUNTS_CREDENTIALS.md`](docs/ACCOUNTS_CREDENTIALS.md) | Exhaustive list of demo accounts, passwords, and institutional authorization keys. |
 | **💾 Production Database Schema DDL** | [`database/smartbio_schema.sql`](database/smartbio_schema.sql) | 3NF Relational MySQL/PostgreSQL schema with audit triggers and foreign keys. |
