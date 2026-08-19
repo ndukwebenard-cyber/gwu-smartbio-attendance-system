@@ -657,9 +657,15 @@ class SmartBioApp {
       tableBody.insertBefore(tr, tableBody.firstChild);
     }
 
-    // If student is viewing, refresh gauges
-    if (this.currentRole === 'STUDENT') {
+    // Refresh active view to reflect updated attendance percentages in real time
+    if (this.currentView === 'LECTURER') {
+      this.renderLecturerDefaulterTable();
+    } else if (this.currentView === 'CLASS_REP') {
+      this.renderClassRepPortal();
+    } else if (this.currentView === 'STUDENT') {
       this.renderStudentPortal();
+    } else if (this.currentView === 'ADMIN') {
+      this.renderAdminPortal();
     }
   }
 
@@ -697,8 +703,9 @@ class SmartBioApp {
       status: 'ACTIVE'
     };
 
-    // Broadcast to Cloud Firestore for cross-device real-time detection
+    // Broadcast to Cloud Firestore & local event bus for zero-latency detection
     window.smartBioCloud.broadcastActiveSession(this.activeLectureSession);
+    window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: this.activeLectureSession }));
 
     // Update UI elements
     const banner = document.getElementById('liveSessionActiveBanner');
@@ -742,8 +749,9 @@ class SmartBioApp {
     if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
     const currentUser = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Dr. Olawale Adeyemi' };
 
-    // Clear active session from Cloud Firestore
+    // Clear active session from Cloud Firestore & local event bus
     window.smartBioCloud.endActiveSessionCloud();
+    window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null }));
     this.activeLectureSession = null;
 
     const banner = document.getElementById('liveSessionActiveBanner');
@@ -1465,8 +1473,10 @@ class SmartBioApp {
           if (res && res.success) {
             window.smartBioAudio.playSuccessChime();
             this.showToast('WebAuthn Authenticator Verified Successfully!', 'success');
+            const activeSess = this.activeLectureSession;
             window.smartBioCloud.recordAttendance({
-              sessionId: 10,
+              sessionId: activeSess ? activeSess.id : 10,
+              courseId: activeSess ? activeSess.courseId : 1,
               studentId: user.id,
               method: 'WEBAUTHN_BIOMETRIC',
               confidence: 99.8,
@@ -1482,16 +1492,25 @@ class SmartBioApp {
   }
 
   renderScannerTerminal() {
-    this.updateScannerHUD('SYSTEM READY', 'Waiting for student fingerprint touch on platen...');
+    if (this.activeLectureSession) {
+      const course = (window.smartBioData.load().courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'CSC 401' };
+      this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${this.activeLectureSession.venue})`);
+    } else {
+      this.updateScannerHUD('SYSTEM READY', 'Waiting for student fingerprint touch on platen...');
+    }
   }
 
   async runTerminalScan(mode = 'NORMAL', studentId = 4) {
     this.updateScannerHUD('SCANNING...', 'Extracting optical ridge patterns & minutiae points...');
     
+    const activeSess = this.activeLectureSession;
+    const currentSessionId = activeSess ? activeSess.id : 10;
+    const currentCourseId = activeSess ? activeSess.courseId : 1;
+
     const result = await window.smartBioBiometric.simulateOpticalScan({
       studentId,
       testMode: mode,
-      sessionId: 10
+      sessionId: currentSessionId
     });
 
     if (!result) return;
@@ -1499,7 +1518,8 @@ class SmartBioApp {
     if (result.status === 'PRESENT') {
       this.updateScannerHUD('VERIFIED (MATCH 99%)', `${result.student.fullName} (${result.student.identifier}) verified. Attendance logged.`);
       window.smartBioCloud.recordAttendance({
-        sessionId: result.sessionId,
+        sessionId: currentSessionId,
+        courseId: currentCourseId,
         studentId: result.student.id,
         method: result.method,
         confidence: Number(result.confidence),
@@ -1509,7 +1529,8 @@ class SmartBioApp {
     } else if (result.status === 'FLAGGED') {
       this.updateScannerHUD('FLAGGED EXCEPTION', `${result.student.fullName} flagged: ${result.flagReason}. Routed to Lecturer.`);
       window.smartBioCloud.recordFlaggedException({
-        sessionId: result.sessionId,
+        sessionId: currentSessionId,
+        courseId: currentCourseId,
         studentId: result.student.id,
         flagReason: result.flagReason,
         capturedConfidence: Number(result.confidence),
