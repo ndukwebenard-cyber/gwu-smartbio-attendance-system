@@ -1608,13 +1608,16 @@ class SmartBioApp {
     }
 
     this.populateLectureCourseDropdown();
-    if (this.currentRole === 'STUDENT') this.renderStudentPortal();
-    if (this.currentRole === 'CLASS_REP') this.renderClassRepPortal();
-    if (this.currentRole === 'LECTURER') this.renderLecturerPortal();
-    if (this.currentRole === 'ADMIN') this.renderAdminPortal();
+    if (this.currentView === 'STUDENT') this.renderStudentPortal();
+    if (this.currentView === 'CLASS_REP') this.renderClassRepPortal();
+    if (this.currentView === 'LECTURER') this.renderLecturerPortal();
+    if (this.currentView === 'ADMIN') this.renderAdminPortal();
 
     this.closeCreateCourseModal();
     window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Course ${code} successfully created! Auto-enrolled ${autoEnrolledCount} cohort students.`, 'success');
+  }
+
   // 11. Admin Governance & Ownership Transfer Methods
   openReassignCourseModal(courseId) {
     const modal = document.getElementById('reassignCourseModal');
