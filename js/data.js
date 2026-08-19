@@ -60,7 +60,7 @@ const DEFAULT_SEEDS = {
       academicLevel: 400,
       avatar: '🎓',
       hasBiometrics: true,
-      fingerTemplate: 'SHA256:8f4c2e91b637dae15091726a84d29f03'
+      fingerTemplate: 'SIMULATED_BIO_TEMPLATE_BENEDICT_001'
     },
     {
       id: 5,
@@ -72,7 +72,7 @@ const DEFAULT_SEEDS = {
       academicLevel: 400,
       avatar: '👩‍🎓',
       hasBiometrics: true,
-      fingerTemplate: 'SHA256:7b1e4c90a518cfe24182635b73e18a92'
+      fingerTemplate: 'SIMULATED_BIO_TEMPLATE_FOLAKE_002'
     },
     {
       id: 6,
@@ -84,7 +84,7 @@ const DEFAULT_SEEDS = {
       academicLevel: 400,
       avatar: '👥',
       hasBiometrics: true,
-      fingerTemplate: 'SHA256:6a0d3b89e407bed13071524a62d07b81'
+      fingerTemplate: 'SIMULATED_BIO_TEMPLATE_CHUKWUDI_003'
     },
     {
       id: 7,
@@ -96,7 +96,7 @@ const DEFAULT_SEEDS = {
       academicLevel: 400,
       avatar: '👩‍🎓',
       hasBiometrics: true,
-      fingerTemplate: 'SHA256:59fc2a78d3f6adc02f60413951c96a70'
+      fingerTemplate: 'SIMULATED_BIO_TEMPLATE_AMINA_004'
     },
     {
       id: 8,
@@ -108,7 +108,7 @@ const DEFAULT_SEEDS = {
       academicLevel: 400,
       avatar: '🧑‍🎓',
       hasBiometrics: true,
-      fingerTemplate: 'SHA256:48eb1967c2e59cb01e5f302840b8596f'
+      fingerTemplate: 'SIMULATED_BIO_TEMPLATE_TUNDE_005'
     }
   ],
   courses: [
@@ -178,44 +178,43 @@ const DEFAULT_SEEDS = {
     { id: 10, courseId: 1, lecturerId: 2, topic: 'Final Project Defense Preparation & Live Testing', venue: 'ICT Hall A', timestamp: '2026-04-07 09:00', status: 'CONCLUDED' }
   ],
   attendanceRecords: [
-    // Benedict (GWU/CSC/22/001) - Attended 9/10 (90%)
-    { id: 1, sessionId: 1, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 98.4, status: 'PRESENT', time: '09:04 AM' },
-    { id: 2, sessionId: 2, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 99.1, status: 'PRESENT', time: '09:02 AM' },
-    { id: 3, sessionId: 3, studentId: 4, method: 'WEBAUTHN_BIOMETRIC', confidence: 97.8, status: 'PRESENT', time: '09:05 AM' },
-    { id: 4, sessionId: 4, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 99.0, status: 'PRESENT', time: '09:01 AM' },
-    { id: 5, sessionId: 5, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 96.5, status: 'PRESENT', time: '09:06 AM' },
-    { id: 6, sessionId: 6, studentId: 4, method: 'FLAGGED_RESOLVED', confidence: 82.0, status: 'PRESENT', time: '09:12 AM', flagReason: 'SWEATY_RIDGE', notes: 'Verified student ID card physically' },
-    { id: 7, sessionId: 7, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 99.4, status: 'PRESENT', time: '09:03 AM' },
-    { id: 8, sessionId: 8, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 98.9, status: 'PRESENT', time: '09:04 AM' },
-    { id: 9, sessionId: 9, studentId: 4, method: 'OPTICAL_FINGERPRINT', confidence: 97.2, status: 'PRESENT', time: '09:05 AM' },
+    // Benedict (GWU/CSC/22/001) - Attended exactly 8/10 (80% -> CLEARED)
+    { id: 1, sessionId: 1, studentId: 4, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.4, status: 'PRESENT', time: '09:04 AM' },
+    { id: 2, sessionId: 2, studentId: 4, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.1, status: 'PRESENT', time: '09:02 AM' },
+    { id: 3, sessionId: 3, studentId: 4, method: 'WEBAUTHN_BIOMETRIC', confidence: 99.8, status: 'PRESENT', time: '09:05 AM' },
+    { id: 4, sessionId: 4, studentId: 4, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.0, status: 'PRESENT', time: '09:01 AM' },
+    { id: 5, sessionId: 5, studentId: 4, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 96.5, status: 'PRESENT', time: '09:06 AM' },
+    { id: 6, sessionId: 6, studentId: 4, method: 'FLAGGED_RESOLVED', confidence: 100.0, status: 'PRESENT', time: '09:12 AM', flagReason: 'SWEATY_RIDGE', notes: 'Verified student ID card physically by lecturer' },
+    { id: 7, sessionId: 7, studentId: 4, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.4, status: 'PRESENT', time: '09:03 AM' },
+    { id: 8, sessionId: 8, studentId: 4, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.9, status: 'PRESENT', time: '09:04 AM' },
 
-    // Folake Adebayo (GWU/CSC/22/014) - Attended 10/10 (100%)
-    { id: 10, sessionId: 1, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 99.5, status: 'PRESENT', time: '09:01 AM' },
-    { id: 11, sessionId: 2, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 98.8, status: 'PRESENT', time: '09:02 AM' },
-    { id: 12, sessionId: 3, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 99.2, status: 'PRESENT', time: '09:04 AM' },
+    // Folake Adebayo (GWU/CSC/22/014) - Attended 10/10 (100% -> CLEARED)
+    { id: 10, sessionId: 1, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.5, status: 'PRESENT', time: '09:01 AM' },
+    { id: 11, sessionId: 2, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.8, status: 'PRESENT', time: '09:02 AM' },
+    { id: 12, sessionId: 3, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.2, status: 'PRESENT', time: '09:04 AM' },
     { id: 13, sessionId: 4, studentId: 5, method: 'WEBAUTHN_BIOMETRIC', confidence: 99.9, status: 'PRESENT', time: '09:01 AM' },
-    { id: 14, sessionId: 5, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 97.9, status: 'PRESENT', time: '09:03 AM' },
-    { id: 15, sessionId: 6, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 98.4, status: 'PRESENT', time: '09:05 AM' },
-    { id: 16, sessionId: 7, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 99.1, status: 'PRESENT', time: '09:02 AM' },
-    { id: 17, sessionId: 8, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 98.6, status: 'PRESENT', time: '09:03 AM' },
-    { id: 18, sessionId: 9, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 99.3, status: 'PRESENT', time: '09:01 AM' },
-    { id: 19, sessionId: 10, studentId: 5, method: 'OPTICAL_FINGERPRINT', confidence: 99.0, status: 'PRESENT', time: '09:02 AM' },
+    { id: 14, sessionId: 5, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 97.9, status: 'PRESENT', time: '09:03 AM' },
+    { id: 15, sessionId: 6, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.4, status: 'PRESENT', time: '09:05 AM' },
+    { id: 16, sessionId: 7, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.1, status: 'PRESENT', time: '09:02 AM' },
+    { id: 17, sessionId: 8, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.6, status: 'PRESENT', time: '09:03 AM' },
+    { id: 18, sessionId: 9, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.3, status: 'PRESENT', time: '09:01 AM' },
+    { id: 19, sessionId: 10, studentId: 5, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.0, status: 'PRESENT', time: '09:02 AM' },
 
     // Chukwudi Eze (GWU/CSC/22/028) - Attended 7/10 (70% -> AT RISK)
-    { id: 20, sessionId: 1, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 96.2, status: 'PRESENT', time: '09:08 AM' },
-    { id: 21, sessionId: 2, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 97.1, status: 'PRESENT', time: '09:07 AM' },
-    { id: 22, sessionId: 3, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 95.8, status: 'PRESENT', time: '09:10 AM' },
-    { id: 23, sessionId: 4, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 98.0, status: 'PRESENT', time: '09:06 AM' },
-    { id: 24, sessionId: 5, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 96.9, status: 'PRESENT', time: '09:09 AM' },
-    { id: 25, sessionId: 6, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 97.4, status: 'PRESENT', time: '09:05 AM' },
-    { id: 26, sessionId: 7, studentId: 6, method: 'OPTICAL_FINGERPRINT', confidence: 98.1, status: 'PRESENT', time: '09:07 AM' },
+    { id: 20, sessionId: 1, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 96.2, status: 'PRESENT', time: '09:08 AM' },
+    { id: 21, sessionId: 2, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 97.1, status: 'PRESENT', time: '09:07 AM' },
+    { id: 22, sessionId: 3, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 95.8, status: 'PRESENT', time: '09:10 AM' },
+    { id: 23, sessionId: 4, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.0, status: 'PRESENT', time: '09:06 AM' },
+    { id: 24, sessionId: 5, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 96.9, status: 'PRESENT', time: '09:09 AM' },
+    { id: 25, sessionId: 6, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 97.4, status: 'PRESENT', time: '09:05 AM' },
+    { id: 26, sessionId: 7, studentId: 6, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.1, status: 'PRESENT', time: '09:07 AM' },
 
     // Amina Mohammed (GWU/CSC/22/035) - Attended 5/10 (50% -> INELIGIBLE / DEFAULTER)
-    { id: 27, sessionId: 1, studentId: 7, method: 'OPTICAL_FINGERPRINT', confidence: 98.0, status: 'PRESENT', time: '09:11 AM' },
-    { id: 28, sessionId: 2, studentId: 7, method: 'OPTICAL_FINGERPRINT', confidence: 97.5, status: 'PRESENT', time: '09:12 AM' },
-    { id: 29, sessionId: 3, studentId: 7, method: 'OPTICAL_FINGERPRINT', confidence: 99.1, status: 'PRESENT', time: '09:08 AM' },
-    { id: 30, sessionId: 4, studentId: 7, method: 'OPTICAL_FINGERPRINT', confidence: 98.4, status: 'PRESENT', time: '09:09 AM' },
-    { id: 31, sessionId: 5, studentId: 7, method: 'OPTICAL_FINGERPRINT', confidence: 96.8, status: 'PRESENT', time: '09:10 AM' }
+    { id: 27, sessionId: 1, studentId: 7, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.0, status: 'PRESENT', time: '09:11 AM' },
+    { id: 28, sessionId: 2, studentId: 7, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 97.5, status: 'PRESENT', time: '09:12 AM' },
+    { id: 29, sessionId: 3, studentId: 7, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 99.1, status: 'PRESENT', time: '09:08 AM' },
+    { id: 30, sessionId: 4, studentId: 7, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 98.4, status: 'PRESENT', time: '09:09 AM' },
+    { id: 31, sessionId: 5, studentId: 7, method: 'OPTICAL_FINGERPRINT_SIM', confidence: 96.8, status: 'PRESENT', time: '09:10 AM' }
   ],
   flaggedExceptions: [
     {
@@ -224,13 +223,13 @@ const DEFAULT_SEEDS = {
       studentId: 8, // Tunde Bakare
       flagReason: 'INJURED_FINGER_LOW_RIDGE',
       capturedConfidence: 48.5,
-      timestamp: 'Just now',
+      timestamp: '2026-04-07 09:15',
       status: 'PENDING_REVIEW'
     }
   ],
   auditLogs: [
-    { id: 1, actor: 'Dr. K. Balogun (Admin)', action: 'SYSTEM_INIT', details: 'Initialized 2025/2026 academic structure with NUC 75% rule threshold', time: '2026-02-01 08:00' },
-    { id: 2, actor: 'Dr. Olawale Adeyemi', action: 'FLAG_OVERRIDE', details: 'Approved flagged attendance for Benedict Uchechukwu after verifying physical ID card', time: '2026-03-10 09:14' }
+    { id: 1, actorId: 1, actor: 'Dr. Kola Balogun (ADMIN)', action: 'SYSTEM_INIT', details: 'Initialized 2025/2026 academic structure with NUC 75% rule threshold', time: '2026-02-01 08:00' },
+    { id: 2, actorId: 2, actor: 'Dr. Olawale Adeyemi (LECTURER)', action: 'FLAG_OVERRIDE_APPROVED', details: 'Approved flagged attendance for Benedict Uchechukwu (GWU/CSC/22/001) after verifying physical ID card', time: '2026-03-10 09:14' }
   ]
 };
 

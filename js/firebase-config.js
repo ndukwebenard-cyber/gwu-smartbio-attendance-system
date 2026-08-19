@@ -65,7 +65,7 @@ class CloudSyncEngine {
   async initializeFirebase() {
     if (!this.config || !this.config.apiKey || !this.config.projectId) {
       this.isConnected = false;
-      this.updateSyncUI('OFFLINE / LOCAL STORAGE');
+      this.updateSyncUI();
       return false;
     }
 
@@ -92,31 +92,45 @@ class CloudSyncEngine {
         this.db = firebase.firestore();
         this.auth = firebase.auth();
 
-        // Verify connection by pinging Firestore
+        // Enable network if supported
         try {
-          await this.db.collection('_ping').doc('ping').get();
-        } catch (pingErr) {
-          // Ignore 'Not found' (normal) but fail on auth/network errors
-          if (pingErr.code && pingErr.code !== 'not-found') {
-            throw pingErr;
+          if (this.db.enableNetwork) {
+            await this.db.enableNetwork();
           }
+        } catch (netErr) {
+          console.warn('Firestore enableNetwork notice:', netErr.message);
         }
 
-        this.isConnected = true;
-        this.updateSyncUI('Online');
+        this.isConnected = typeof navigator.onLine === 'undefined' ? true : navigator.onLine;
+        this.updateSyncUI();
         this.setupRealtimeListeners();
-        console.log('⚡ Firebase Cloud Firestore connected to', this.config.projectId);
+
+        // Listen to online / offline network transitions
+        window.addEventListener('online', () => {
+          this.isConnected = true;
+          this.updateSyncUI();
+          this.setupRealtimeListeners();
+          console.log('🌐 Network online: Cloud Firestore connected');
+        });
+
+        window.addEventListener('offline', () => {
+          this.isConnected = false;
+          this.updateSyncUI();
+          console.log('📡 Network offline: Switched to Local Mode');
+        });
+
+        console.log('⚡ Firebase Cloud Firestore initialized & online for project', this.config.projectId);
         return true;
       } else {
         console.warn('Firebase SDK not yet loaded or offline');
         this.isConnected = false;
-        this.updateSyncUI('Local Mode');
+        this.updateSyncUI();
         return false;
       }
     } catch (e) {
       console.error('Firebase initialization error:', e);
       this.isConnected = false;
-      this.updateSyncUI('Local Mode');
+      this.updateSyncUI();
       return false;
     }
   }
@@ -558,6 +572,13 @@ class CloudSyncEngine {
       modalBadge.innerText = this.isConnected ? '🟢 ONLINE (LIVE FIRESTORE)' : '🟠 LOCAL STORAGE (OFFLINE)';
     }
   }
-}
-
 window.smartBioCloud = new CloudSyncEngine();
+
+// Auto-boot Firebase Cloud connection on startup
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    window.smartBioCloud.initializeFirebase();
+  });
+} else {
+  window.smartBioCloud.initializeFirebase();
+}

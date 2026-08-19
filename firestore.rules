@@ -2,54 +2,107 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // ── Helper Security Functions ──────────────────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
     
     function getUserRole() {
-      return request.auth.token.role != null ? request.auth.token.role : 'STUDENT';
+      return request.auth.token.role != null 
+        ? request.auth.token.role 
+        : (request.auth.token.email.matches('.*admin.*') ? 'ADMIN' : 'STUDENT');
     }
 
-    // 1. Users collection
+    function isAdmin() {
+      return isAuthenticated() && (getUserRole() == 'ADMIN');
+    }
+
+    function isLecturer() {
+      return isAuthenticated() && (getUserRole() == 'LECTURER' || isAdmin());
+    }
+
+    function isClassRep() {
+      return isAuthenticated() && (getUserRole() == 'CLASS_REP');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == resource.data.email);
+    }
+
+    // ── 1. Users Collection ────────────────────────────────────────────────
+    // Students can read their own profiles; staff/admin can view university directory
     match /users/{userId} {
-      allow read: if true;
-      allow write: if isAuthenticated() && (request.auth.uid == userId || getUserRole() == 'ADMIN');
+      allow read: if isAuthenticated() && (isOwner(userId) || isLecturer() || isClassRep());
+      allow create: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
+      allow update: if isAuthenticated() && (isAdmin() || request.auth.uid == userId);
+      allow delete: if isAdmin();
     }
 
-    // 2. Active & Historical Lecture Sessions
-    match /lecture_sessions/{sessionId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated() && (getUserRole() == 'LECTURER' || getUserRole() == 'ADMIN');
-      allow delete: if isAuthenticated() && getUserRole() == 'ADMIN';
+    // ── 2. Academic Departments & Courses ──────────────────────────────────
+    match /departments/{deptId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // 3. Attendance Records
-    match /attendance_records/{recordId} {
-      allow read: if true;
-      allow create: if true; // Allows Scanner Kiosks and WebAuthn hardware check-ins
-      allow update, delete: if isAuthenticated() && (getUserRole() == 'LECTURER' || getUserRole() == 'ADMIN');
-    }
-
-    // 4. Flagged Exceptions Queue
-    match /flagged_exceptions/{flagId} {
-      allow read: if true;
-      allow create: if true; // Scanner Kiosks route flagged scans
-      // Only Lecturers and Admins can resolve or approve flagged exceptions (NDPA 2023 Rule)
-      allow update, delete: if isAuthenticated() && (getUserRole() == 'LECTURER' || getUserRole() == 'ADMIN');
-    }
-
-    // 5. Courses and Registrations
     match /courses/{courseId} {
-      allow read: if true;
-      allow write: if isAuthenticated() && getUserRole() == 'ADMIN';
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // 6. Immutable NDPA Audit Trail Logs
+    match /courseRegistrations/{regId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isLecturer();
+    }
+
+    // ── 3. Lecture Sessions ────────────────────────────────────────────────
+    // Only assigned Lecturers and Administrators can create and control lecture sessions
+    match /lecture_sessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isLecturer();
+      allow delete: if isAdmin();
+    }
+
+    // ── 4. Authoritative Attendance Records ────────────────────────────────
+    // Server/Device check-ins must be authenticated. Duplicate updates prohibited by unprivileged users.
+    match /attendance_records/{recordId} {
+      // Students can only read their own attendance records
+      allow read: if isAuthenticated() && (
+        isLecturer() || 
+        isClassRep() || 
+        (resource.data.studentId != null && resource.data.studentId == request.auth.uid) ||
+        (resource.data.studentEmail != null && resource.data.studentEmail == request.auth.token.email)
+      );
+      // Authorized kiosk or faculty creates attendance
+      allow create: if isAuthenticated() && (isLecturer() || isClassRep());
+      // Only Lecturers and Admins can modify attendance records
+      allow update, delete: if isLecturer();
+    }
+
+    // ── 5. Flagged Exceptions Queue (Sweaty/Injured Fingerprint Workflow) ───
+    match /flagged_exceptions/{flagId} {
+      allow read: if isAuthenticated() && (isLecturer() || resource.data.studentId == request.auth.uid);
+      allow create: if isAuthenticated() && (isLecturer() || isClassRep());
+      // SEPARATION OF DUTIES: Class Rep CANNOT resolve exceptions (Strict Lecturer/Admin Rule)
+      allow update, delete: if isLecturer();
+    }
+
+    // ── 6. Immutable NDPA 2023 Audit Trail Logs ────────────────────────────
     match /audit_logs/{logId} {
-      allow read: if isAuthenticated() && (getUserRole() == 'ADMIN' || getUserRole() == 'LECTURER');
-      allow create: if true;
-      allow update, delete: if false; // Immutable logs
+      allow read: if isLecturer();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // STRICTLY IMMUTABLE: Tamper-proof append-only
+    }
+
+    // ── 7. Examination Clearance Dockets ───────────────────────────────────
+    match /clearance_documents/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && (isLecturer() || resource.data.studentId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ── Default Fallback: Deny all other collections ───────────────────────
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
