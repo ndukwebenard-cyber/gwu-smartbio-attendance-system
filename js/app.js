@@ -1683,8 +1683,35 @@ class SmartBioApp {
     }
   }
 
+  async exportFirestoreBackup() {
+    this.showToast('📥 Fetching all collections from Cloud Firestore...', 'info');
+    try {
+      await window.smartBioCloud.exportFirestoreDataAsJSON();
+      window.smartBioAudio.playSuccessChime();
+      this.showToast('✅ Complete Firestore JSON backup downloaded successfully!', 'success');
+    } catch (err) {
+      console.error('Firestore export notice:', err);
+      // Fallback: Export local JSON backup if Firestore offline
+      const localData = window.smartBioData.load();
+      const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localData, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute("href", jsonString);
+      a.setAttribute("download", `gwu_smartbio_local_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      this.showToast('ℹ️ Exported local database backup (Firestore offline).', 'info');
+    }
+  }
+
   async cleanFirestoreData() {
-    if (!confirm('🧹 Clean Firestore Test Records?\n\nThis will purge transient test attendance scans and test flags, while retaining and normalizing all authentic user accounts, courses, and departments with clean system unique IDs.')) {
+    const wantBackup = confirm('📥 Safety Backup Recommended:\n\nWould you like to download a complete JSON backup of your current Firestore database before cleaning?');
+    if (wantBackup) {
+      await this.exportFirestoreBackup();
+      await new Promise(r => setTimeout(r, 1200));
+    }
+
+    if (!confirm('🧹 Proceed to Clean Firestore Test Records?\n\nThis will purge transient test attendance scans and test flags, while retaining and normalizing all authentic user accounts, courses, and departments with clean system unique IDs.')) {
       return;
     }
 

@@ -382,6 +382,67 @@ class CloudSyncEngine {
     }
   }
 
+  // Full JSON Data Exporter from Google Cloud Firestore
+  async exportFirestoreDataAsJSON() {
+    if (!this.isConnected || !this.db) {
+      const initialized = await this.initializeFirebase();
+      if (!initialized) {
+        throw new Error('Google Cloud Firestore is offline. Check API credentials or network.');
+      }
+    }
+
+    try {
+      console.log('📥 Exporting complete Firestore dataset...');
+      const collections = [
+        'users',
+        'departments',
+        'courses',
+        'courseRegistrations',
+        'lecture_sessions',
+        'attendance_records',
+        'flagged_exceptions',
+        'audit_logs'
+      ];
+
+      const exportPayload = {
+        metadata: {
+          system: 'Global Wealth University SmartBio Attendance System',
+          exportTimestamp: new Date().toISOString(),
+          source: 'Google Cloud Firestore',
+          schemaVersion: '2.0-FIDO2-RBAC'
+        },
+        collections: {}
+      };
+
+      for (const col of collections) {
+        try {
+          const snap = await this.db.collection(col).get();
+          exportPayload.collections[col] = snap.docs.map(doc => ({
+            _id: doc.id,
+            ...doc.data()
+          }));
+        } catch (e) {
+          console.warn(`Could not export collection ${col}:`, e.message);
+          exportPayload.collections[col] = [];
+        }
+      }
+
+      // Trigger automatic JSON download
+      const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", jsonString);
+      downloadAnchor.setAttribute("download", `gwu_smartbio_firestore_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      return exportPayload;
+    } catch (err) {
+      console.error('Firestore Export Error:', err);
+      throw err;
+    }
+  }
+
   updateSyncUI(statusText) {
     const el = document.getElementById('cloudStatusText');
     const dot = document.getElementById('cloudSyncDot');
