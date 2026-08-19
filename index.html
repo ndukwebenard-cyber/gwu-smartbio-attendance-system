@@ -122,11 +122,11 @@
           </div>
           <div>
             <label class="form-label">Lecture Topic</label>
-            <input type="text" class="form-control" id="lectureTopicInput" value="Biometric Minutiae &amp; Cryptographic Hashes" placeholder="e.g. Design Patterns">
+            <input type="text" class="form-control" id="lectureTopicInput" value="Biometric Minutiae &amp; Cryptographic Hashes" placeholder="e.g. Design Patterns" autocapitalize="words" data-autocase="title">
           </div>
           <div>
             <label class="form-label">Lecture Hall / Venue</label>
-            <input type="text" class="form-control" id="lectureVenueInput" value="ICT Hall A" placeholder="e.g. Lab 2">
+            <input type="text" class="form-control" id="lectureVenueInput" value="ICT Hall A" placeholder="e.g. Lab 2" autocapitalize="words" data-autocase="title">
           </div>
           <button class="btn btn-primary" id="btnStartLectureSession" style="width: 100%;">
             Start Session
@@ -242,6 +242,28 @@
         </div>
       </div>
 
+      <!-- Live Session Notification Banner for Class Rep -->
+      <div class="live-session-banner hidden" id="repLiveSessionBanner" style="margin-bottom: 20px; border-color: var(--primary); background: linear-gradient(135deg, rgba(0, 242, 254, 0.12), rgba(79, 172, 254, 0.08));">
+        <div class="radar-pulse-ring">
+          <div class="radar-dot"></div>
+          <div>
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 2px;">
+              <span class="badge badge-eligible font-bold">🟢 CLASS IN SESSION</span>
+              <strong id="repActiveCourseCode" class="text-primary font-mono font-bold">CSC 401</strong>
+            </div>
+            <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="repActiveTopic">Advanced Software Architecture</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">
+              Lecturer: <strong id="repActiveLecturer">Dr. Olawale Adeyemi</strong> • Venue: <strong id="repActiveVenue">ICT Hall A</strong>
+            </p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="btn btn-primary btn-sm" onclick="smartBioApp.switchRole('SCANNER')">
+            🚀 Launch Hall Terminal
+          </button>
+        </div>
+      </div>
+
       <!-- Proctor Live Headcount Card -->
       <div class="stats-grid">
         <div class="stat-card">
@@ -331,6 +353,28 @@
         <button class="btn btn-primary" id="btnOpenDocketModal">
           📜 Generate Exam Clearance Docket
         </button>
+      </div>
+
+      <!-- Live Session Notification Banner for Students -->
+      <div class="live-session-banner hidden" id="studentLiveSessionBanner" style="margin-bottom: 20px; border-color: var(--primary); background: linear-gradient(135deg, rgba(0, 242, 254, 0.12), rgba(79, 172, 254, 0.08));">
+        <div class="radar-pulse-ring">
+          <div class="radar-dot"></div>
+          <div>
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 2px;">
+              <span class="badge badge-eligible font-bold">🟢 CLASS IN SESSION</span>
+              <strong id="studentActiveCourseCode" class="text-primary font-mono font-bold">CSC 401</strong>
+            </div>
+            <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="studentActiveTopic">Advanced Software Architecture</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">
+              Lecturer: <strong id="studentActiveLecturer">Dr. Olawale Adeyemi</strong> • Venue: <strong id="studentActiveVenue">ICT Hall A</strong>
+            </p>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="btn btn-primary btn-sm" onclick="smartBioApp.switchRole('SCANNER')">
+            🖲️ Check In at Kiosk
+          </button>
+        </div>
       </div>
 
       <!-- Real-Time Course Compliance Gauges -->
@@ -988,15 +1032,12 @@
 
             <div class="form-row-2col">
               <div class="form-group">
-                <label class="form-label" for="regFullName">Full Legal Name</label>
-                <input type="text" class="form-control" id="regFullName" placeholder="e.g. Benedict Uche" required>
+                <label class="form-label" for="regFullName">Full Name (Surname First)</label>
+                <input type="text" class="form-control" id="regFullName" placeholder="e.g. Benedict Uche" autocapitalize="words" data-autocase="title" required>
               </div>
               <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                  <label class="form-label" for="regMatricNo" style="margin-bottom: 0;">Institutional ID / Matric No</label>
-                  <span class="badge badge-eligible font-mono" style="font-size: 0.65rem; padding: 2px 6px;">Auto-Generated</span>
-                </div>
-                <input type="text" class="form-control font-mono font-bold" id="regMatricNo" placeholder="GWU/CSC/22/053" required>
+                <label class="form-label" for="regMatricNo" id="regMatricLabel">Institutional Identifier / Matric No</label>
+                <input type="text" class="form-control font-mono font-bold" id="regMatricNo" placeholder="GWU/CSC/22/053" autocapitalize="characters" data-autocase="upper" required>
               </div>
             </div>
 
@@ -1180,7 +1221,7 @@
           <div class="form-row-2col">
             <div class="form-group">
               <label class="form-label" for="newCourseCode">Course Code</label>
-              <input type="text" class="form-control font-mono font-bold" id="newCourseCode" placeholder="e.g. CSC 415" required>
+              <input type="text" class="form-control font-mono font-bold" id="newCourseCode" placeholder="e.g. CSC 415" autocapitalize="characters" data-autocase="upper" required>
             </div>
             <div class="form-group">
               <label class="form-label" for="newCourseUnits">Credit Units</label>
@@ -1189,8 +1230,8 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="newCourseTitle">Full Course Title</label>
-            <input type="text" class="form-control" id="newCourseTitle" placeholder="e.g. Cloud Security &amp; Distributed Systems" required>
+            <label class="form-label" for="newCourseTitle">Course Title</label>
+            <input type="text" class="form-control" id="newCourseTitle" placeholder="e.g. Cloud Security &amp; Distributed Systems" autocapitalize="words" data-autocase="title" required>
           </div>
 
           <div class="form-row-2col">
@@ -1359,11 +1400,7 @@
           <div class="form-row-2col">
             <div class="form-group">
               <label class="form-label" for="deptCodeInput">Department Code (Abbreviation)</label>
-              <input type="text" class="form-control font-mono font-bold" id="deptCodeInput"
-                placeholder="e.g. CSC, MTH, PHY"
-                maxlength="6"
-                oninput="this.value = this.value.toUpperCase()"
-                required>
+              <input type="text" class="form-control font-mono font-bold" id="deptCodeInput" placeholder="e.g. CYB" maxlength="5" autocapitalize="characters" data-autocase="upper" required>
               <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; display: block;">
                 2–6 uppercase letters. Used in matric numbers: <code style="color:var(--primary);" id="deptCodePreview">GWU/???/YY/NNN</code>
               </span>
@@ -1379,7 +1416,8 @@
           <div class="form-group">
             <label class="form-label" for="deptNameInput">Full Department Name</label>
             <input type="text" class="form-control" id="deptNameInput"
-              placeholder="e.g. Computer Science &amp; Software Engineering"
+              placeholder="e.g. Cyber Security Science"
+              autocapitalize="words" data-autocase="title"
               required>
           </div>
 
@@ -1387,6 +1425,7 @@
             <label class="form-label" for="deptFacultyInput">Faculty / School</label>
             <input type="text" class="form-control" id="deptFacultyInput"
               placeholder="e.g. Faculty of Basic &amp; Applied Sciences"
+              autocapitalize="words" data-autocase="title"
               required>
           </div>
 

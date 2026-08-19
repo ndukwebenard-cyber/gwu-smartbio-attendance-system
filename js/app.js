@@ -40,9 +40,46 @@ class SmartBioApp {
     this.populateDepartmentDropdowns();
     this.populateLectureCourseDropdown();
     this.updateRegMatricPreview();
+    this.bindAutoCaseInputs();
+
+    // Restore ongoing active lecture session from localStorage across page refreshes
+    try {
+      const savedSess = localStorage.getItem('smartbio_active_session');
+      if (savedSess) {
+        const parsed = JSON.parse(savedSess);
+        if (parsed && parsed.status === 'ACTIVE') {
+          this.activeLectureSession = parsed;
+          this.renderActiveSessionUI(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Session restoration notice:', e);
+    }
 
     // Default view based on authenticated user
     this.switchRole(this.authenticatedUser ? this.authenticatedUser.role : 'LECTURER');
+  }
+
+  bindAutoCaseInputs() {
+    // Title Case Auto-Capitalization on blur / change
+    document.querySelectorAll('input[data-autocase="title"]').forEach(input => {
+      input.addEventListener('blur', () => {
+        if (input.value) {
+          input.value = input.value
+            .toLowerCase()
+            .split(' ')
+            .map(word => word ? (word.charAt(0).toUpperCase() + word.slice(1)) : '')
+            .join(' ');
+        }
+      });
+    });
+
+    // Uppercase Auto-Capitalization on live input
+    document.querySelectorAll('input[data-autocase="upper"]').forEach(input => {
+      input.addEventListener('input', () => {
+        input.value = input.value.toUpperCase();
+      });
+    });
   }
 
   // 1. Role & View Switching (Changes Perspective Without Mutating Auth Identity)
@@ -616,24 +653,27 @@ class SmartBioApp {
       if (this.currentRole === 'ADMIN') this.renderAdminPortal();
     });
 
-    // When active lecture session state changes in Firestore Cloud
+    // When active lecture session state changes in Firestore Cloud or local bus
     window.addEventListener('smartbio:session_update', (e) => {
       const sessionData = e.detail;
-      const banner = document.getElementById('liveSessionActiveBanner');
-      const formBox = document.getElementById('lectureSessionConfigBox');
-      const titleEl = document.getElementById('activeSessionTitle');
-      const venueEl = document.getElementById('activeSessionVenue');
-
       if (sessionData && sessionData.status === 'ACTIVE') {
         this.activeLectureSession = sessionData;
-        if (banner) banner.classList.remove('hidden');
-        if (formBox) formBox.classList.add('hidden');
-        if (titleEl) titleEl.innerText = sessionData.topic || 'Active Lecture';
-        if (venueEl) venueEl.innerText = sessionData.venue || 'ICT Hall';
-      } else if (!sessionData && this.activeLectureSession) {
+        this.renderActiveSessionUI(sessionData);
+
+        // If current role is student or class rep, notify with gentle alert
+        if (this.currentView === 'STUDENT' || this.currentView === 'CLASS_REP') {
+          window.smartBioAudio.playSuccessChime();
+          const course = (window.smartBioData.load().courses || []).find(c => c.id === sessionData.courseId) || { code: 'CSC 401' };
+          this.showToast(`🔔 Live Lecture Alert: ${course.code} is now in session at ${sessionData.venue}!`, 'info');
+        }
+      } else {
         this.activeLectureSession = null;
+        if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+        const banner = document.getElementById('liveSessionActiveBanner');
+        const formBox = document.getElementById('lectureSessionConfigBox');
         if (banner) banner.classList.add('hidden');
         if (formBox) formBox.classList.remove('hidden');
+        this.updateRoleSessionBanners(null);
       }
     });
   }
@@ -692,8 +732,10 @@ class SmartBioApp {
     const venue = venueInput && venueInput.value.trim() ? venueInput.value.trim() : 'ICT Hall A';
     const currentUser = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Dr. Olawale Adeyemi' };
 
+    const startTimeMs = Date.now();
     this.activeLectureSession = {
-      id: Date.now(),
+      id: startTimeMs,
+      startTimeMs: startTimeMs,
       courseId,
       lecturerId: this.currentUserId,
       lecturerName: currentUser.fullName,
@@ -703,35 +745,18 @@ class SmartBioApp {
       status: 'ACTIVE'
     };
 
+    // Save session to localStorage so page refresh preserves live state and timer
+    try {
+      localStorage.setItem('smartbio_active_session', JSON.stringify(this.activeLectureSession));
+    } catch (e) {
+      console.warn('Storage persistence notice:', e);
+    }
+
     // Broadcast to Cloud Firestore & local event bus for zero-latency detection
     window.smartBioCloud.broadcastActiveSession(this.activeLectureSession);
     window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: this.activeLectureSession }));
 
-    // Update UI elements
-    const banner = document.getElementById('liveSessionActiveBanner');
-    const formBox = document.getElementById('lectureSessionConfigBox');
-    if (banner) banner.classList.remove('hidden');
-    if (formBox) formBox.classList.add('hidden');
-
-    const titleEl = document.getElementById('activeSessionTitle');
-    const venueEl = document.getElementById('activeSessionVenue');
-    const courseCodeEl = document.getElementById('activeSessionCourseCode');
-    const course = (window.smartBioData.load().courses || []).find(c => c.id === courseId) || { code: 'CSC 401' };
-
-    if (titleEl) titleEl.innerText = topic;
-    if (venueEl) venueEl.innerText = venue;
-    if (courseCodeEl) courseCodeEl.innerText = course.code;
-
-    // Start live duration counter
-    this.sessionSecondsElapsed = 0;
-    if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
-    this.sessionTimerInterval = setInterval(() => {
-      this.sessionSecondsElapsed++;
-      const mins = String(Math.floor(this.sessionSecondsElapsed / 60)).padStart(2, '0');
-      const secs = String(this.sessionSecondsElapsed % 60).padStart(2, '0');
-      const timerEl = document.getElementById('activeSessionTimer');
-      if (timerEl) timerEl.innerText = `${mins}:${secs}`;
-    }, 1000);
+    this.renderActiveSessionUI(this.activeLectureSession);
 
     // Audit log with actorId
     window.smartBioData.addAuditLog({
@@ -745,11 +770,90 @@ class SmartBioApp {
     this.showToast('Live Lecture Session is now ACTIVE & Streaming to Cloud', 'success');
   }
 
+  renderActiveSessionUI(session) {
+    if (!session || session.status !== 'ACTIVE') return;
+
+    const banner = document.getElementById('liveSessionActiveBanner');
+    const formBox = document.getElementById('lectureSessionConfigBox');
+    if (banner) banner.classList.remove('hidden');
+    if (formBox) formBox.classList.add('hidden');
+
+    const titleEl = document.getElementById('activeSessionTitle');
+    const venueEl = document.getElementById('activeSessionVenue');
+    const courseCodeEl = document.getElementById('activeSessionCourseCode');
+    const course = (window.smartBioData.load().courses || []).find(c => c.id === session.courseId) || { code: 'CSC 401', title: 'Advanced Software Engineering' };
+
+    if (titleEl) titleEl.innerText = session.topic;
+    if (venueEl) venueEl.innerText = session.venue;
+    if (courseCodeEl) courseCodeEl.innerText = course.code;
+
+    // Calculate elapsed duration accurately across page refreshes
+    const startMs = session.startTimeMs || session.id || Date.now();
+    this.sessionSecondsElapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+    
+    const updateTimer = () => {
+      const mins = String(Math.floor(this.sessionSecondsElapsed / 60)).padStart(2, '0');
+      const secs = String(this.sessionSecondsElapsed % 60).padStart(2, '0');
+      const timerEl = document.getElementById('activeSessionTimer');
+      if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+    };
+    updateTimer();
+
+    if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
+    this.sessionTimerInterval = setInterval(() => {
+      this.sessionSecondsElapsed++;
+      updateTimer();
+    }, 1000);
+
+    // Update in-session banners in Student & Class Rep portals
+    this.updateRoleSessionBanners(session, course);
+  }
+
+  updateRoleSessionBanners(session, course) {
+    const studentBanner = document.getElementById('studentLiveSessionBanner');
+    const repBanner = document.getElementById('repLiveSessionBanner');
+
+    if (session && session.status === 'ACTIVE') {
+      const c = course || (window.smartBioData.load().courses || []).find(item => item.id === session.courseId) || { code: 'CSC 401', title: 'Advanced Software Engineering' };
+      
+      if (studentBanner) {
+        studentBanner.classList.remove('hidden');
+        const cCode = document.getElementById('studentActiveCourseCode');
+        const topic = document.getElementById('studentActiveTopic');
+        const lect = document.getElementById('studentActiveLecturer');
+        const ven = document.getElementById('studentActiveVenue');
+        if (cCode) cCode.innerText = c.code;
+        if (topic) topic.innerText = session.topic || c.title;
+        if (lect) lect.innerText = session.lecturerName || 'Dr. Olawale Adeyemi';
+        if (ven) ven.innerText = session.venue || 'ICT Hall A';
+      }
+
+      if (repBanner) {
+        repBanner.classList.remove('hidden');
+        const cCode = document.getElementById('repActiveCourseCode');
+        const topic = document.getElementById('repActiveTopic');
+        const lect = document.getElementById('repActiveLecturer');
+        const ven = document.getElementById('repActiveVenue');
+        if (cCode) cCode.innerText = c.code;
+        if (topic) topic.innerText = session.topic || c.title;
+        if (lect) lect.innerText = session.lecturerName || 'Dr. Olawale Adeyemi';
+        if (ven) ven.innerText = session.venue || 'ICT Hall A';
+      }
+    } else {
+      if (studentBanner) studentBanner.classList.add('hidden');
+      if (repBanner) repBanner.classList.add('hidden');
+    }
+  }
+
   endActiveLectureSession() {
     if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
     const currentUser = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Dr. Olawale Adeyemi' };
 
-    // Clear active session from Cloud Firestore & local event bus
+    // Clear active session from localStorage, Cloud Firestore & local event bus
+    try {
+      localStorage.removeItem('smartbio_active_session');
+    } catch (e) {}
+
     window.smartBioCloud.endActiveSessionCloud();
     window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null }));
     this.activeLectureSession = null;
@@ -758,6 +862,8 @@ class SmartBioApp {
     const formBox = document.getElementById('lectureSessionConfigBox');
     if (banner) banner.classList.add('hidden');
     if (formBox) formBox.classList.remove('hidden');
+
+    this.updateRoleSessionBanners(null);
 
     window.smartBioData.addAuditLog({
       actorId: this.currentUserId,
