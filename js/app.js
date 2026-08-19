@@ -184,6 +184,9 @@ class SmartBioApp {
           passcodeLabel.innerText = '🔐 Master Administrator Security Key Required';
           passcodeInput.placeholder = 'e.g. GWU-ADMIN-2026';
         }
+
+        const badgeEl = document.getElementById('regPasscodeRequiredBadge');
+        if (badgeEl) badgeEl.innerText = this.AUTH_PASSCODES[role] || '';
       }
     }
 
@@ -378,6 +381,26 @@ class SmartBioApp {
     }
 
     this.showToast(`Auto-filled demo credentials for ${role}`, 'info');
+  }
+
+  togglePasswordVisibility(inputId, btnEl) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (btnEl) btnEl.innerText = '🙈';
+    } else {
+      input.type = 'password';
+      if (btnEl) btnEl.innerText = '👁️';
+    }
+  }
+
+  fillPasscode(code) {
+    const passcodeInput = document.getElementById('regPasscodeInput');
+    if (passcodeInput) {
+      passcodeInput.value = code;
+      this.showToast(`Passcode set to ${code}`, 'info');
+    }
   }
 
   async handleSignIn(e) {
@@ -685,8 +708,12 @@ class SmartBioApp {
 
     const titleEl = document.getElementById('activeSessionTitle');
     const venueEl = document.getElementById('activeSessionVenue');
+    const courseCodeEl = document.getElementById('activeSessionCourseCode');
+    const course = (window.smartBioData.load().courses || []).find(c => c.id === courseId) || { code: 'CSC 401' };
+
     if (titleEl) titleEl.innerText = topic;
     if (venueEl) venueEl.innerText = venue;
+    if (courseCodeEl) courseCodeEl.innerText = course.code;
 
     // Start live duration counter
     this.sessionSecondsElapsed = 0;
@@ -736,12 +763,75 @@ class SmartBioApp {
   }
 
   renderLecturerPortal() {
-    const lecturer = window.smartBioData.getUserById(this.currentUserId) || { fullName: 'Dr. Olawale Adeyemi' };
+    const data = window.smartBioData.load();
+    const user = this.authenticatedUser;
+    const lecturer = (user && user.role === 'LECTURER') ? user : (window.smartBioData.getUserById(2) || { fullName: 'Dr. Olawale Adeyemi', departmentId: 1 });
+    
     const nameEl = document.getElementById('lecturerWelcomeName');
+    const deptEl = document.getElementById('lecturerDeptName');
     if (nameEl) nameEl.innerText = lecturer.fullName;
+    if (deptEl) {
+      const dept = (data.departments || []).find(d => d.id === lecturer.departmentId) || { name: 'Computer Science & Software Engineering' };
+      deptEl.innerText = `Dept of ${dept.name}`;
+    }
 
+    this.populateDefaulterCourseDropdown();
+    this.renderLiveAttendanceStream();
     this.renderFlaggedQueue();
     this.renderLecturerDefaulterTable();
+  }
+
+  renderLiveAttendanceStream() {
+    const tableBody = document.getElementById('liveRadarTableBody');
+    if (!tableBody) return;
+
+    const data = window.smartBioData.load();
+    const records = (data.attendanceRecords || []).slice(-8).reverse();
+
+    if (records.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+            📡 Radar Active — No attendance scans recorded yet for this session.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let html = '';
+    records.forEach(r => {
+      const student = window.smartBioData.getUserById(r.studentId) || { fullName: 'Student', identifier: 'GWU/CSC/22/001' };
+      const scanTime = r.timestamp ? new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (r.time || '09:00 AM');
+      html += `
+        <tr>
+          <td><strong class="font-mono">${student.identifier}</strong></td>
+          <td>${student.fullName}</td>
+          <td><span class="badge ${r.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${r.status}</span></td>
+          <td>${r.confidence || 98.4}%</td>
+          <td>${scanTime}</td>
+        </tr>
+      `;
+    });
+    tableBody.innerHTML = html;
+  }
+
+  populateDefaulterCourseDropdown() {
+    const select = document.getElementById('defaulterCourseSelect');
+    if (!select) return;
+
+    const data = window.smartBioData.load();
+    const courses = data.courses || [];
+    const currentVal = select.value;
+
+    let html = '';
+    courses.forEach(c => {
+      html += `<option value="${c.id}">${c.code} — ${c.title}</option>`;
+    });
+    select.innerHTML = html;
+    if (currentVal && courses.some(c => String(c.id) === String(currentVal))) {
+      select.value = currentVal;
+    }
   }
 
   renderFlaggedQueue() {
@@ -830,13 +920,24 @@ class SmartBioApp {
     if (!tableBody) return;
 
     const data = window.smartBioData.load();
-    const students = data.users.filter(u => u.role === 'STUDENT');
+    const select = document.getElementById('defaulterCourseSelect');
+    const selectedCourseId = select && select.value ? Number(select.value) : (data.courses[0] ? data.courses[0].id : 1);
+
+    const course = (data.courses || []).find(c => c.id === selectedCourseId) || { code: 'CSC 401', minAttendancePct: 75 };
+    const courseTitleEl = document.getElementById('lecturerDefaulterCourseCode');
+    if (courseTitleEl) courseTitleEl.innerText = course.code;
+
+    const students = (data.users || []).filter(u => u.role === 'STUDENT' || u.role === 'CLASS_REP');
     
+    let totalConducted = 0;
     let html = '';
+
     students.forEach(student => {
       const comp = window.smartBioCompliance.calculateStudentCompliance(student.id);
-      if (!comp || comp.courseStats.length === 0) return;
-      const stat = comp.courseStats[0]; // CSC 401
+      if (!comp || !comp.courseStats || comp.courseStats.length === 0) return;
+      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId) || comp.courseStats[0];
+
+      if (stat.totalHeld > totalConducted) totalConducted = stat.totalHeld;
 
       html += `
         <tr>
@@ -847,12 +948,22 @@ class SmartBioApp {
           <td><span class="badge ${stat.statusClass}">${stat.badgeLabel}</span></td>
           <td>
             ${stat.status === 'ELIGIBLE' 
-              ? '<span class="text-success">✓ Cleared</span>' 
-              : `<span class="text-danger">Needs +${stat.classesNeeded} classes</span>`}
+              ? '<span class="text-success font-bold">✓ Cleared</span>' 
+              : `<span class="text-danger font-bold">Needs +${stat.classesNeeded} classes</span>`}
           </td>
         </tr>
       `;
     });
+
+    if (!html) {
+      html = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No students enrolled in ${course.code} yet.</td></tr>`;
+    }
+
+    const metaEl = document.getElementById('lecturerDefaulterSubMeta');
+    if (metaEl) {
+      metaEl.innerText = `Real-time calculation based on ${totalConducted} conducted lecture(s) • NUC Statutory Min: ${course.minAttendancePct || 75}%`;
+    }
+
     tableBody.innerHTML = html;
   }
 

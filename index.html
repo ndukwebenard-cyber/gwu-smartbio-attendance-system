@@ -82,8 +82,8 @@
     <section class="portal-view active" id="lecturerPortalView">
       <div class="view-header">
         <div class="view-title-group">
-          <h2>Lecturer Dashboard & Live Session Radar</h2>
-          <p>Welcome back, <strong id="lecturerWelcomeName" class="text-primary">Dr. Olawale Adeyemi</strong> • Dept of Computer Science & Software Engineering</p>
+          <h2>Lecturer Dashboard &amp; Live Session Radar</h2>
+          <p>Welcome back, <strong id="lecturerWelcomeName" class="text-primary">Dr. Olawale Adeyemi</strong> • <span id="lecturerDeptName">Dept of Computer Science &amp; Software Engineering</span></p>
         </div>
         <div class="view-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="btn btn-primary" onclick="smartBioApp.openCreateCourseModal()">
@@ -97,9 +97,9 @@
         <div class="radar-pulse-ring">
           <div class="radar-dot"></div>
           <div>
-            <h3 style="font-size: 1.1rem; font-weight: 800;" id="activeSessionTitle">Advanced Software Architecture & WebAuthn</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 800;" id="activeSessionTitle">Advanced Software Architecture &amp; WebAuthn</h3>
             <p style="font-size: 0.82rem; color: var(--text-muted);">
-              Venue: <strong id="activeSessionVenue">ICT Hall A</strong> • Course: <strong>CSC 401</strong> • Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span>
+              Venue: <strong id="activeSessionVenue">ICT Hall A</strong> • Course: <strong id="activeSessionCourseCode" class="text-primary font-mono">CSC 401</strong> • Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span>
             </p>
           </div>
         </div>
@@ -154,27 +154,7 @@
                 </tr>
               </thead>
               <tbody id="liveRadarTableBody">
-                <tr>
-                  <td><strong class="font-mono">GWU/CSC/22/001</strong></td>
-                  <td>Benedict Uchechukwu</td>
-                  <td><span class="badge badge-eligible">PRESENT</span></td>
-                  <td>98.4%</td>
-                  <td>09:05 AM</td>
-                </tr>
-                <tr>
-                  <td><strong class="font-mono">GWU/CSC/22/014</strong></td>
-                  <td>Folake Adebayo</td>
-                  <td><span class="badge badge-eligible">PRESENT</span></td>
-                  <td>99.2%</td>
-                  <td>09:02 AM</td>
-                </tr>
-                <tr>
-                  <td><strong class="font-mono">GWU/CSC/22/028</strong></td>
-                  <td>Chukwudi Eze</td>
-                  <td><span class="badge badge-eligible">PRESENT</span></td>
-                  <td>97.8%</td>
-                  <td>09:07 AM</td>
-                </tr>
+                <!-- Rendered dynamically via smartBioApp.renderLiveAttendanceStream() -->
               </tbody>
             </table>
           </div>
@@ -197,14 +177,24 @@
 
       <!-- NUC 75% Compliance & Defaulter Summary -->
       <div class="glass-card" style="margin-top: 24px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
           <div>
-            <h3 style="font-size: 1.15rem; font-weight: 800;">📊 NUC 75% Defaulter & Examination Eligibility Sheet (CSC 401)</h3>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">Real-time calculation based on 10 conducted lectures.</p>
+            <h3 style="font-size: 1.15rem; font-weight: 800; margin-bottom: 4px;">
+              📊 NUC 75% Defaulter &amp; Examination Eligibility Sheet (<span id="lecturerDefaulterCourseCode" class="text-primary font-mono">CSC 401</span>)
+            </h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0;" id="lecturerDefaulterSubMeta">
+              Real-time calculation based on conducted lectures.
+            </p>
           </div>
-          <button class="btn btn-secondary btn-sm" onclick="window.print()">
-            🖨️ Export PDF / Print Roster
-          </button>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <label for="defaulterCourseSelect" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">Course Roster:</label>
+            <select id="defaulterCourseSelect" class="form-control font-bold font-mono" style="width: auto; padding: 6px 12px; font-size: 0.82rem;" onchange="smartBioApp.renderLecturerDefaulterTable()">
+              <!-- Dynamic course selection -->
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="window.print()">
+              🖨️ Print Roster
+            </button>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="data-table">
@@ -869,13 +859,16 @@
               <input type="text" class="form-control" id="loginEmailInput" value="o.adeyemi@smartbio.edu.ng" placeholder="e.g. b.uche@student.gwu.edu or GWU/CSC/22/001" required>
             </div>
 
-            <!-- Password Input -->
+            <!-- Password Input with Show/Hide -->
             <div class="form-group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <label class="form-label" for="loginPasswordInput" style="margin-bottom: 0;">Password</label>
                 <a href="javascript:void(0)" onclick="smartBioApp.switchAuthView('RESET')" style="font-size: 0.76rem; color: var(--primary); text-decoration: none;">Forgot Password?</a>
               </div>
-              <input type="password" class="form-control" id="loginPasswordInput" value="••••••••" placeholder="Enter your password" required>
+              <div class="password-input-wrapper">
+                <input type="password" class="form-control font-mono" id="loginPasswordInput" value="password123" placeholder="Enter your password" required>
+                <button type="button" class="btn-toggle-pwd" onclick="smartBioApp.togglePasswordVisibility('loginPasswordInput', this)" title="Show/Hide Password">👁️</button>
+              </div>
             </div>
 
             <!-- 1-Click Defense Quick-Fill Sandbox -->
@@ -928,14 +921,25 @@
             </div>
 
             <!-- Gatekeeping Authorization Key (Dynamically shown for privileged roles) -->
-            <div class="form-group" id="regPasscodeGroup" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px dashed var(--warning); border-radius: var(--radius-sm); padding: 12px;">
-              <label class="form-label" id="regPasscodeLabel" for="regPasscodeInput" style="color: var(--warning); font-weight: 700;">
-                🔐 Institutional Faculty Passcode Required
-              </label>
-              <input type="password" class="form-control font-mono" id="regPasscodeInput" placeholder="e.g. GWU-FACULTY-2026">
-              <span id="regPasscodeHelp" style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-top: 4px;">
-                Demo Passcodes: Lecturer: <code style="color: var(--primary);">GWU-FACULTY-2026</code> • Class Rep: <code style="color: var(--primary);">GWU-PROCTOR-2026</code> • Admin: <code style="color: var(--primary);">GWU-ADMIN-2026</code>
-              </span>
+            <div class="form-group" id="regPasscodeGroup" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid var(--warning); border-radius: var(--radius-sm); padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" id="regPasscodeLabel" for="regPasscodeInput" style="color: var(--warning); font-weight: 700; margin-bottom: 0;">
+                  🔐 Institutional Authorization Key Required
+                </label>
+                <span class="badge badge-warning" id="regPasscodeRequiredBadge" style="font-size: 0.7rem; font-family: monospace;">GWU-FACULTY-2026</span>
+              </div>
+              <div class="password-input-wrapper" style="margin-bottom: 8px;">
+                <input type="text" class="form-control font-mono font-bold" id="regPasscodeInput" placeholder="Enter Authorization Passcode">
+                <button type="button" class="btn-toggle-pwd" onclick="smartBioApp.togglePasswordVisibility('regPasscodeInput', this)" title="Show/Hide Passcode">👁️</button>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.75rem;">
+                <span style="color: var(--text-muted);">Institutional Passcodes (Click to auto-fill):</span>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillPasscode('GWU-FACULTY-2026')" style="font-size: 0.7rem; padding: 2px 8px; font-family: monospace;">👨‍🏫 Faculty Key</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillPasscode('GWU-PROCTOR-2026')" style="font-size: 0.7rem; padding: 2px 8px; font-family: monospace;">👥 Proctor Key</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.fillPasscode('GWU-ADMIN-2026')" style="font-size: 0.7rem; padding: 2px 8px; font-family: monospace;">👨‍💼 Admin Key</button>
+                </div>
+              </div>
             </div>
 
             <!-- Dept / Level / Cohort — hidden for ADMIN (institution-wide role) -->
@@ -990,11 +994,17 @@
             <div class="form-row-2col">
               <div class="form-group">
                 <label class="form-label" for="regPassword">Create Password</label>
-                <input type="password" class="form-control" id="regPassword" placeholder="Minimum 6 characters" required>
+                <div class="password-input-wrapper">
+                  <input type="password" class="form-control" id="regPassword" placeholder="Minimum 6 characters" required>
+                  <button type="button" class="btn-toggle-pwd" onclick="smartBioApp.togglePasswordVisibility('regPassword', this)" title="Show/Hide Password">👁️</button>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label" for="regConfirmPassword">Confirm Password</label>
-                <input type="password" class="form-control" id="regConfirmPassword" placeholder="Repeat password" required>
+                <div class="password-input-wrapper">
+                  <input type="password" class="form-control" id="regConfirmPassword" placeholder="Repeat password" required>
+                  <button type="button" class="btn-toggle-pwd" onclick="smartBioApp.togglePasswordVisibility('regConfirmPassword', this)" title="Show/Hide Password">👁️</button>
+                </div>
               </div>
             </div>
 

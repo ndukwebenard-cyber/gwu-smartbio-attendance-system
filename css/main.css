@@ -568,15 +568,53 @@ body.modal-open {
 
 .form-control {
   width: 100%;
-  padding: 11px 14px;
-  background: var(--bg-surface-elevated);
+  padding: 10px 14px;
+  background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   color: var(--text-main);
-  font-family: var(--font-sans);
-  font-size: 1rem; /* 16px min prevents iOS zoom */
+  font-family: inherit;
+  font-size: 0.9rem;
   transition: var(--transition-fast);
+  outline: none;
   min-height: var(--touch-min);
+}
+
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrapper .form-control {
+  padding-right: 44px;
+}
+
+.btn-toggle-pwd {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+  z-index: 2;
+  min-height: 32px;
+  min-width: 32px;
+}
+
+.btn-toggle-pwd:hover {
+  color: var(--primary);
+  background: rgba(0, 242, 254, 0.12);
 }
 
 .form-control:focus {
