@@ -186,6 +186,12 @@ class SmartBioApp {
       }
     }
 
+    // Hide Dept/Level fields for Admin — institution-wide role, no cohort
+    const deptLevelGroup = document.getElementById('regDeptLevelGroup');
+    if (deptLevelGroup) {
+      deptLevelGroup.style.display = (role === 'ADMIN') ? 'none' : 'block';
+    }
+
     this.updateRegMatricPreview();
   }
 
@@ -208,6 +214,7 @@ class SmartBioApp {
 
     // Derive academic entry year (2025/2026 baseline)
     let entryYear = '22';
+    if (levelVal === '500') entryYear = '21'; // Postgraduate / Masters (5-year)
     if (levelVal === '300') entryYear = '23';
     if (levelVal === '200') entryYear = '24';
     if (levelVal === '100') entryYear = '25';
@@ -370,8 +377,8 @@ class SmartBioApp {
 
     // Find matching user in data store
     const users = window.smartBioData.getUsers();
-    let user = users.find(u => 
-      u.email.toLowerCase() === identifier.toLowerCase() || 
+    let user = users.find(u =>
+      u.email.toLowerCase() === identifier.toLowerCase() ||
       u.identifier.toLowerCase() === identifier.toLowerCase()
     );
 
@@ -380,12 +387,16 @@ class SmartBioApp {
       user = users.find(u => u.role === role) || users[0];
     }
 
-    this.currentUserId = user.id;
-    this.switchRole(role, user.id);
+    // === CRITICAL: Set authenticated session identity BEFORE switching view ===
+    // Route guards, navbar badge and profile modal all key off authenticatedUser.
+    // Never mutate this outside of explicit login / logout flows.
+    this.authenticatedUser = user;
+
     this.closeAuthModal();
+    this.switchRole(user.role); // Open the view matching the user's own role
 
     window.smartBioAudio.playSuccessChime();
-    this.showToast(`Welcome back, ${user.fullName}! Authenticated as ${role}.`, 'success');
+    this.showToast(`Welcome back, ${user.fullName}! Signed in as ${user.role}.`, 'success');
   }
 
   async handleSignUp(e) {
@@ -1083,6 +1094,9 @@ class SmartBioApp {
     if (totalCoursesEl) totalCoursesEl.innerText = data.courses.length;
     if (totalSessionsEl) totalSessionsEl.innerText = data.lectureSessions.length;
 
+    // 0. Departments table
+    this.renderAdminDepartments(data);
+
     // 1. Course Governance Table
     const coursesTableBody = document.getElementById('adminCoursesTableBody');
     if (coursesTableBody) {
@@ -1493,6 +1507,115 @@ class SmartBioApp {
       }
     }
   }
+
+  // 10. Course Creation Modal & Delegation
+  // ── Department Management (Admin) ──────────────────────────────────────────
+
+  renderAdminDepartments(data) {
+    if (!data) data = window.smartBioData.load();
+    const tbody = document.getElementById('adminDeptTableBody');
+    if (!tbody) return;
+    const users = data.users || [];
+    let html = '';
+    (data.departments || []).forEach((dept, idx) => {
+      const studentCount = users.filter(u => u.departmentId === dept.id && (u.role === 'STUDENT' || u.role === 'CLASS_REP')).length;
+      html += `
+        <tr>
+          <td style="color:var(--text-muted);">${idx + 1}</td>
+          <td><strong class="font-mono badge badge-eligible">${dept.code}</strong></td>
+          <td><strong>${dept.name}</strong></td>
+          <td style="color:var(--text-muted); font-size:0.82rem;">${dept.faculty || '—'}</td>
+          <td><span class="badge badge-at-risk">${studentCount} students</span></td>
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="smartBioApp.handleDeleteDept(${dept.id})" style="padding: 3px 10px; font-size: 0.72rem;">
+              🗑️ Delete
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+    if (!html) {
+      html = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding: 24px;">No departments registered yet. Create the first one above.</td></tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  openCreateDeptModal() {
+    const modal = document.getElementById('createDeptModal');
+    if (modal) {
+      document.getElementById('formCreateDept').reset();
+      document.getElementById('deptPreviewBox').innerText = 'GWU/???/22/001';
+      modal.classList.add('active');
+      // live preview on code input
+      const codeInput = document.getElementById('deptCodeInput');
+      if (codeInput) {
+        codeInput.oninput = () => {
+          const c = codeInput.value.toUpperCase() || '???';
+          document.getElementById('deptPreviewBox').innerText = `GWU/${c}/22/001`;
+        };
+      }
+    }
+  }
+
+  closeCreateDeptModal() {
+    const modal = document.getElementById('createDeptModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  handleCreateDept(e) {
+    e.preventDefault();
+    const code    = document.getElementById('deptCodeInput').value.trim().toUpperCase();
+    const name    = document.getElementById('deptNameInput').value.trim();
+    const faculty = document.getElementById('deptFacultyInput').value.trim();
+
+    const data = window.smartBioData.load();
+    const depts = data.departments || [];
+
+    if (depts.find(d => d.code === code)) {
+      this.showToast(`Department code "${code}" already exists.`, 'error');
+      return;
+    }
+
+    const newId = Math.max(0, ...depts.map(d => d.id)) + 1;
+    depts.push({ id: newId, code, name, faculty });
+    data.departments = depts;
+    window.smartBioData.save(data);
+
+    // Also update regDepartment select so newly created dept is immediately available
+    const regDept = document.getElementById('regDepartment');
+    if (regDept) {
+      const opt = document.createElement('option');
+      opt.value = String(newId);
+      opt.textContent = `${code} — ${name}`;
+      regDept.appendChild(opt);
+    }
+
+    this.closeCreateDeptModal();
+    this.renderAdminDepartments(data);
+    this.writeAuditLog('DEPT_CREATED', `Department ${code} (${name}) created`);
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Department ${code} — ${name} created successfully!`, 'success');
+  }
+
+  handleDeleteDept(deptId) {
+    const data = window.smartBioData.load();
+    const dept = (data.departments || []).find(d => d.id === deptId);
+    if (!dept) return;
+
+    const usersInDept = (data.users || []).filter(u => u.departmentId === deptId).length;
+    if (usersInDept > 0) {
+      this.showToast(`Cannot delete ${dept.code} — ${usersInDept} user(s) are currently enrolled in it.`, 'error');
+      return;
+    }
+    if (!confirm(`⚠️ Permanently delete the "${dept.code} — ${dept.name}" department?\n\nThis cannot be undone.`)) return;
+
+    data.departments = data.departments.filter(d => d.id !== deptId);
+    window.smartBioData.save(data);
+    this.renderAdminDepartments(data);
+    this.writeAuditLog('DEPT_DELETED', `Department ${dept.code} (${dept.name}) deleted by admin`);
+    this.showToast(`🗑️ Department ${dept.code} deleted.`, 'info');
+  }
+
 
   // 10. Course Creation Modal & Delegation
   openCreateCourseModal() {

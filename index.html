@@ -425,6 +425,36 @@
         </div>
       </div>
 
+      <!-- Department Management Card -->
+      <div class="glass-card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 4px;">🏫 Academic Department Registry</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">Create, view and manage academic departments available across the institution.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="smartBioApp.openCreateDeptModal()">
+            ➕ Create Department
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Code</th>
+                <th>Department Name</th>
+                <th>Faculty / School</th>
+                <th>Students</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminDeptTableBody">
+              <!-- Rendered via app.js renderAdminDepartments() -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Course & Curriculum Governance Directory -->
       <div class="glass-card" style="margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
@@ -908,24 +938,33 @@
               </span>
             </div>
 
-            <div class="form-row-2col">
-              <div class="form-group">
-                <label class="form-label" for="regDepartment">Academic Department</label>
-                <select class="form-control font-bold" id="regDepartment" onchange="smartBioApp.updateRegMatricPreview()" required>
-                  <option value="1">CSC — Computer Science &amp; Software Eng.</option>
-                  <option value="2">CYB — Cyber Security Science</option>
-                  <option value="3">IFT — Information Technology</option>
-                </select>
+            <!-- Dept / Level / Cohort — hidden for ADMIN (institution-wide role) -->
+            <div id="regDeptLevelGroup">
+              <div class="form-row-2col">
+                <div class="form-group">
+                  <label class="form-label" for="regDepartment">Academic Department</label>
+                  <select class="form-control font-bold" id="regDepartment" onchange="smartBioApp.updateRegMatricPreview()">
+                    <option value="1">CSC — Computer Science &amp; Software Eng.</option>
+                    <option value="2">CYB — Cyber Security Science</option>
+                    <option value="3">IFT — Information Technology</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="regLevel">Academic Level</label>
+                  <select class="form-control font-bold" id="regLevel" onchange="smartBioApp.updateRegMatricPreview()">
+                    <option value="500">500 Level (Postgraduate / Masters)</option>
+                    <option value="400">400 Level (Final Year)</option>
+                    <option value="300">300 Level</option>
+                    <option value="200">200 Level</option>
+                    <option value="100">100 Level</option>
+                    <option value="Faculty">Faculty Staff / Academic Board</option>
+                  </select>
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label" for="regLevel">Academic Level</label>
-                <select class="form-control font-bold" id="regLevel" onchange="smartBioApp.updateRegMatricPreview()">
-                  <option value="400">400 Level (Final Year)</option>
-                  <option value="300">300 Level</option>
-                  <option value="200">200 Level</option>
-                  <option value="100">100 Level</option>
-                  <option value="Faculty">Faculty Staff / Academic Board</option>
-                </select>
+
+              <!-- Auto-Enrollment Helper Callout -->
+              <div id="regAutoEnrollInfoBox" style="background: rgba(0, 242, 254, 0.06); border: 1px solid var(--border-glow); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px; font-size: 0.78rem; color: var(--text-muted);">
+                💡 <strong style="color: var(--primary);">Smart Cohort Linkage:</strong> All active courses for <span id="regAutoEnrollCohortLabel" class="text-primary font-bold">CSC 400L</span> will be automatically linked to this account upon creation.
               </div>
             </div>
 
@@ -941,11 +980,6 @@
                 </div>
                 <input type="text" class="form-control font-mono font-bold" id="regMatricNo" placeholder="GWU/CSC/22/053" required>
               </div>
-            </div>
-
-            <!-- Auto-Enrollment Helper Callout -->
-            <div id="regAutoEnrollInfoBox" style="background: rgba(0, 242, 254, 0.06); border: 1px solid var(--border-glow); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px; font-size: 0.78rem; color: var(--text-muted);">
-              💡 <strong style="color: var(--primary);">Smart Cohort Linkage:</strong> All active courses for <span id="regAutoEnrollCohortLabel" class="text-primary font-bold">CSC 400L</span> will be automatically linked to this account upon creation.
             </div>
 
             <div class="form-group">
@@ -1150,7 +1184,8 @@
                 <option value="400">400 Level</option>
                 <option value="300">300 Level</option>
                 <option value="200">200 Level</option>
-                <option value="100">100 Level</option>
+                <option value="500">500 Level (Postgraduate / Masters)</option>
+              <option value="100">100 Level</option>
               </select>
             </div>
           </div>
@@ -1282,6 +1317,64 @@
   </div>
 
   <!-- Toast Container -->
+  <!-- ================================================================
+       MODAL: CREATE DEPARTMENT (Admin Only)
+       ================================================================ -->
+  <div class="modal-overlay" id="createDeptModal">
+    <div class="modal-container" style="max-width: 500px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">🏫 Admin Action</span>
+          <h3 style="margin-bottom: 0;">Create New Department</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeCreateDeptModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="formCreateDept" onsubmit="smartBioApp.handleCreateDept(event)">
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="deptCodeInput">Department Code (Abbreviation)</label>
+              <input type="text" class="form-control font-mono font-bold" id="deptCodeInput"
+                placeholder="e.g. CSC, MTH, PHY"
+                maxlength="6"
+                oninput="this.value = this.value.toUpperCase()"
+                required>
+              <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; display: block;">
+                2–6 uppercase letters. Used in matric numbers: <code style="color:var(--primary);" id="deptCodePreview">GWU/???/YY/NNN</code>
+              </span>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="deptLevelPreview">Preview</label>
+              <div style="background: rgba(0,242,254,0.06); border: 1px solid var(--border-glow); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.85rem; color: var(--primary); font-weight: 700; font-family: monospace; min-height: 42px; display:flex; align-items:center;" id="deptPreviewBox">
+                GWU/???/22/001
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="deptNameInput">Full Department Name</label>
+            <input type="text" class="form-control" id="deptNameInput"
+              placeholder="e.g. Computer Science &amp; Software Engineering"
+              required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="deptFacultyInput">Faculty / School</label>
+            <input type="text" class="form-control" id="deptFacultyInput"
+              placeholder="e.g. Faculty of Basic &amp; Applied Sciences"
+              required>
+          </div>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.closeCreateDeptModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">✅ Create Department</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Application Scripts -->
