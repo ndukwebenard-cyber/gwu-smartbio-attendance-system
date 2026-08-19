@@ -994,6 +994,24 @@ class SmartBioApp {
     }
   }
 
+  populateRepCourseDropdown(rep) {
+    const select = document.getElementById('repCourseFilterSelect');
+    if (!select) return;
+
+    const data = window.smartBioData.load();
+    const courses = data.courses || [];
+    const currentVal = select.value;
+
+    let html = '';
+    courses.forEach(c => {
+      html += `<option value="${c.id}">${c.code} — ${c.title}</option>`;
+    });
+    select.innerHTML = html;
+    if (currentVal && courses.some(c => String(c.id) === String(currentVal))) {
+      select.value = currentVal;
+    }
+  }
+
   renderClassRepPortal() {
     const user = this.authenticatedUser;
     const rep = (user && user.role === 'CLASS_REP') ? user : (window.smartBioData.getUserById(6) || { fullName: 'Chukwudi Eze', departmentId: 1, academicLevel: '400' });
@@ -1001,17 +1019,24 @@ class SmartBioApp {
     if (nameEl) nameEl.innerText = `${rep.fullName} (Class Rep)`;
 
     const data = window.smartBioData.load();
-    const dept = (data.departments || []).find(d => d.id === rep.departmentId) || { name: 'Computer Science & Software Eng.' };
+    const dept = (data.departments || []).find(d => d.id === rep.departmentId) || { name: 'Computer Science & Software Eng.', code: 'CSC' };
     const cohortEl = document.getElementById('classRepCohortBadge');
     if (cohortEl) cohortEl.innerText = `${dept.name} ${rep.academicLevel ? rep.academicLevel + 'L' : '400L'}`;
 
+    this.populateRepCourseDropdown(rep);
+
+    const select = document.getElementById('repCourseFilterSelect');
+    const selectedCourseId = select && select.value ? Number(select.value) : (data.courses[0] ? data.courses[0].id : 1);
+    const course = (data.courses || []).find(c => c.id === selectedCourseId) || (data.courses[0] || { code: 'CSC 401' });
+
+    const courseHeadingEl = document.getElementById('repDefaulterCourseCode');
+    if (courseHeadingEl) courseHeadingEl.innerText = course.code;
+
+    const repStatMeta = document.getElementById('repStatMetaCourse');
+    if (repStatMeta) repStatMeta.innerText = `${course.code} Cohort`;
+
     const students = data.users.filter(u => u.role === 'STUDENT' || u.role === 'CLASS_REP');
     
-    // Stats calculation
-    const totalEnrolledEl = document.getElementById('repStatEnrolled');
-    const totalPresentEl = document.getElementById('repStatPresent');
-    const totalAtRiskEl = document.getElementById('repStatAtRisk');
-
     let presentCount = 0;
     let atRiskCount = 0;
 
@@ -1020,8 +1045,8 @@ class SmartBioApp {
 
     students.forEach(student => {
       const comp = window.smartBioCompliance.calculateStudentCompliance(student.id);
-      if (!comp || comp.courseStats.length === 0) return;
-      const stat = comp.courseStats[0]; // CSC 401
+      if (!comp || !comp.courseStats || comp.courseStats.length === 0) return;
+      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId) || comp.courseStats[0];
 
       if (stat.status === 'ELIGIBLE') presentCount++;
       if (stat.status === 'AT_RISK' || stat.status === 'INELIGIBLE') atRiskCount++;
@@ -1035,12 +1060,20 @@ class SmartBioApp {
           <td><span class="badge ${stat.statusClass}">${stat.badgeLabel}</span></td>
           <td>
             ${stat.status === 'ELIGIBLE' 
-              ? '<span class="text-success">✓ In Good Standing</span>' 
-              : `<span class="text-warning">⚠️ Must attend next ${stat.classesNeeded} classes</span>`}
+              ? '<span class="text-success font-bold">✓ In Good Standing</span>' 
+              : `<span class="text-warning font-bold">⚠️ Must attend next ${stat.classesNeeded} classes</span>`}
           </td>
         </tr>
       `;
     });
+
+    if (!html) {
+      html = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No students enrolled in ${course.code} yet.</td></tr>`;
+    }
+
+    const totalEnrolledEl = document.getElementById('repStatEnrolled');
+    const totalPresentEl = document.getElementById('repStatPresent');
+    const totalAtRiskEl = document.getElementById('repStatAtRisk');
 
     if (totalEnrolledEl) totalEnrolledEl.innerText = students.length;
     if (totalPresentEl) totalPresentEl.innerText = presentCount;
@@ -1069,12 +1102,38 @@ class SmartBioApp {
     }, 1500);
   }
 
+  populateStudentHistoryCourseDropdown(studentId) {
+    const select = document.getElementById('studentHistoryCourseSelect');
+    if (!select) return;
+
+    const data = window.smartBioData.load();
+    const courses = data.courses || [];
+    const currentVal = select.value;
+
+    let html = '<option value="ALL">All Enrolled Courses</option>';
+    courses.forEach(c => {
+      html += `<option value="${c.id}">${c.code} — ${c.title}</option>`;
+    });
+    select.innerHTML = html;
+    if (currentVal && (currentVal === 'ALL' || courses.some(c => String(c.id) === String(currentVal)))) {
+      select.value = currentVal;
+    }
+  }
+
   renderStudentPortal() {
-    const student = window.smartBioData.getUserById(this.currentUserId) || window.smartBioData.getUsers().find(u => u.role === 'STUDENT');
+    const user = this.authenticatedUser;
+    const student = (user && (user.role === 'STUDENT' || user.role === 'CLASS_REP')) ? user : (window.smartBioData.getUserById(4) || window.smartBioData.getUsers().find(u => u.role === 'STUDENT'));
+    
     const nameEl = document.getElementById('studentWelcomeName');
     const matricEl = document.getElementById('studentMatricBadge');
+    const deptBadgeEl = document.getElementById('studentDeptBadge');
+
     if (nameEl) nameEl.innerText = student.fullName;
     if (matricEl) matricEl.innerText = student.identifier;
+
+    const data = window.smartBioData.load();
+    const dept = (data.departments || []).find(d => d.id === student.departmentId) || { name: 'Computer Science & Software Eng.', code: 'CSC' };
+    if (deptBadgeEl) deptBadgeEl.innerText = `${dept.name} • ${student.academicLevel ? student.academicLevel + 'L' : '400L'}`;
 
     // Render course attendance cards
     const compliance = window.smartBioCompliance.calculateStudentCompliance(student.id);
@@ -1116,7 +1175,8 @@ class SmartBioApp {
       gaugeGrid.innerHTML = html;
     }
 
-    // Render student lecture log
+    // Populate course dropdown for history & render lecture log
+    this.populateStudentHistoryCourseDropdown(student.id);
     this.renderStudentLectureLog(student.id);
   }
 
@@ -1125,25 +1185,53 @@ class SmartBioApp {
     if (!tableBody) return;
 
     const data = window.smartBioData.load();
-    const sessions = data.lectureSessions;
-    let html = '';
+    const select = document.getElementById('studentHistoryCourseSelect');
+    const selectedCourseVal = select ? select.value : 'ALL';
 
+    const courseHeadingEl = document.getElementById('studentHistoryCourseCode');
+    if (courseHeadingEl) {
+      if (selectedCourseVal === 'ALL' || !selectedCourseVal) {
+        courseHeadingEl.innerText = 'All Courses';
+      } else {
+        const c = (data.courses || []).find(item => item.id === Number(selectedCourseVal));
+        courseHeadingEl.innerText = c ? c.code : 'All Courses';
+      }
+    }
+
+    let sessions = data.lectureSessions || [];
+    if (selectedCourseVal && selectedCourseVal !== 'ALL') {
+      sessions = sessions.filter(s => s.courseId === Number(selectedCourseVal));
+    }
+
+    if (sessions.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">
+            No lecture sessions held for this course yet.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    let html = '';
     sessions.forEach(session => {
-      const record = data.attendanceRecords.find(a => a.sessionId === session.id && a.studentId === Number(studentId));
+      const record = (data.attendanceRecords || []).find(a => a.sessionId === session.id && a.studentId === Number(studentId));
       const isPresent = record && (record.status === 'PRESENT' || record.status === 'FLAGGED_RESOLVED');
+      const course = (data.courses || []).find(c => c.id === session.courseId) || { code: 'CSC 401' };
 
       html += `
         <tr>
-          <td><strong class="font-mono">#${session.id}</strong></td>
-          <td>${session.topic}</td>
+          <td><strong class="font-mono">#${session.id}</strong> <span class="badge badge-eligible" style="font-size:0.68rem; margin-left:4px;">${course.code}</span></td>
+          <td><strong>${session.topic}</strong></td>
           <td>${session.venue}</td>
-          <td>${session.timestamp}</td>
+          <td>${session.timestamp || 'Today, 09:00 AM'}</td>
           <td>
             <span class="badge ${isPresent ? 'badge-eligible' : 'badge-ineligible'}">
-              ${isPresent ? 'PRESENT' : 'ABSENT'}
+              ${isPresent ? '✓ PRESENT' : '✗ ABSENT'}
             </span>
           </td>
-          <td>${record ? record.method : '—'}</td>
+          <td style="font-size: 0.8rem; color: var(--text-muted);">${record ? (record.method || 'Biometric WebAuthn') : '—'}</td>
         </tr>
       `;
     });
@@ -1230,6 +1318,26 @@ class SmartBioApp {
     if (totalLecturersEl) totalLecturersEl.innerText = data.users.filter(u => u.role === 'LECTURER').length;
     if (totalCoursesEl) totalCoursesEl.innerText = data.courses.length;
     if (totalSessionsEl) totalSessionsEl.innerText = data.lectureSessions.length;
+
+    // Dynamic Meta Subtitles
+    const metaStudentsEl = document.getElementById('adminStatMetaStudents');
+    const metaCoursesEl = document.getElementById('adminStatMetaCourses');
+    const metaSessionsEl = document.getElementById('adminStatMetaSessions');
+    const sessionLabelEl = document.getElementById('adminActiveSessionLabel');
+    const semesterLabelEl = document.getElementById('adminActiveSemesterLabel');
+
+    if (metaStudentsEl) metaStudentsEl.innerText = `Across ${(data.departments || []).length} Academic Departments`;
+    if (metaCoursesEl) metaCoursesEl.innerText = `${(data.courses || []).length} Accredited Offerings`;
+
+    const totalRecs = (data.attendanceRecords || []).length;
+    const presentRecs = (data.attendanceRecords || []).filter(r => r.status === 'PRESENT' || r.status === 'FLAGGED_RESOLVED').length;
+    const avgPct = totalRecs ? Math.round((presentRecs / totalRecs) * 100) : 86;
+    if (metaSessionsEl) metaSessionsEl.innerText = `Average Att. ${avgPct}%`;
+
+    const session = (data.sessions || []).find(s => s.isCurrent) || { name: '2025/2026' };
+    const semester = (data.semesters || []).find(s => s.isActive) || { type: 'SECOND' };
+    if (sessionLabelEl) sessionLabelEl.innerText = session.name;
+    if (semesterLabelEl) semesterLabelEl.innerText = `${semester.type === 'SECOND' ? 'Second' : 'First'} Semester`;
 
     // 0. Departments table
     this.renderAdminDepartments(data);
@@ -1498,11 +1606,11 @@ class SmartBioApp {
     const modal = document.getElementById('profileModal');
     if (!modal) return;
 
-    const user = window.smartBioData.getUserById(this.currentUserId) || (window.smartBioData.getUsers() || [])[0];
+    const user = this.authenticatedUser || window.smartBioData.getUserById(this.currentUserId) || (window.smartBioData.getUsers() || [])[0];
     if (!user) return;
 
     const data = window.smartBioData.load();
-    const dept = (data.departments || []).find(d => d.id === user.departmentId) || { name: 'Faculty of Applied Sciences' };
+    const dept = (data.departments || []).find(d => d.id === user.departmentId) || { name: 'Computer Science & Software Eng.', code: 'CSC' };
 
     // Identity block
     const avatarEl = document.getElementById('profileModalAvatar');
@@ -1524,8 +1632,17 @@ class SmartBioApp {
     }
     if (idEl) idEl.innerText = user.identifier;
     if (emailEl) emailEl.innerText = user.email;
-    if (deptEl) deptEl.innerText = dept.name;
-    if (levelEl) levelEl.innerText = user.academicLevel ? `${user.academicLevel} Level` : 'Faculty / Administrator';
+
+    if (user.role === 'ADMIN') {
+      if (deptEl) deptEl.innerText = 'Institution-Wide (All Faculties & Depts)';
+      if (levelEl) levelEl.innerText = 'Master System Administrator';
+    } else if (user.role === 'LECTURER') {
+      if (deptEl) deptEl.innerText = `Dept of ${dept.name}`;
+      if (levelEl) levelEl.innerText = 'Academic Board / Course Faculty';
+    } else {
+      if (deptEl) deptEl.innerText = `Dept of ${dept.name}`;
+      if (levelEl) levelEl.innerText = `${user.academicLevel || '400'} Level (${dept.code})`;
+    }
 
     // Biometric Status
     if (user.hasBiometrics) {
@@ -1575,17 +1692,19 @@ class SmartBioApp {
           </div>
         `;
       } else if (user.role === 'CLASS_REP') {
+        const classStudents = (data.users || []).filter(u => u.role === 'STUDENT' && u.departmentId === user.departmentId);
         summaryBox.innerHTML = `
           <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">👥 Class Proctor Scope</div>
           <div style="font-size: 0.8rem; color: var(--text-muted);">
-            Cohort: <strong class="text-main">${dept.code} ${user.academicLevel || 400}L</strong> • Authorized to create courses &amp; launch hall kiosks.
+            Cohort: <strong class="text-main">${dept.code} ${user.academicLevel || 400}L</strong> • Students Managed: <strong class="text-main">${classStudents.length}</strong>
           </div>
         `;
       } else {
         summaryBox.innerHTML = `
           <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">👨‍💼 Administrator Scope</div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">
-            System Health: <strong class="text-success">Active</strong> • Total Registered Users: <strong class="text-main">${data.users.length}</strong>
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+            <span>System Users: <strong class="text-main">${data.users.length}</strong></span>
+            <span>Active Departments: <strong class="text-main">${data.departments.length}</strong></span>
           </div>
         `;
       }

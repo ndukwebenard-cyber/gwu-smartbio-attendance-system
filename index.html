@@ -249,7 +249,7 @@
           <div class="stat-content">
             <h4>Total Course Enrolled</h4>
             <div class="stat-value" id="repStatEnrolled">5</div>
-            <div class="stat-meta">CSC 401 Roster</div>
+            <div class="stat-meta" id="repStatMetaCourse">CSC 401 Cohort</div>
           </div>
         </div>
         <div class="stat-card">
@@ -288,8 +288,14 @@
       <div class="glass-card">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
           <div>
-            <h3 style="font-size: 1.1rem; font-weight: 700;">📢 Course NUC 75% Deficit Monitor (CSC 401)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Notify coursemates who need to attend upcoming lectures to avoid being barred from exams.</p>
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 4px;">📢 Course NUC 75% Deficit Monitor (<span id="repDefaulterCourseCode" class="text-primary font-mono">CSC 401</span>)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">Notify coursemates who need to attend upcoming lectures to avoid being barred from exams.</p>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <label for="repCourseFilterSelect" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">Cohort Course:</label>
+            <select id="repCourseFilterSelect" class="form-control font-bold font-mono" style="width: auto; padding: 6px 12px; font-size: 0.82rem;" onchange="smartBioApp.renderClassRepPortal()">
+              <!-- Dynamically populated via app.js -->
+            </select>
           </div>
         </div>
         <div class="table-responsive">
@@ -319,8 +325,8 @@
     <section class="portal-view" id="studentPortalView">
       <div class="view-header">
         <div class="view-title-group">
-          <h2>Student Attendance & NUC Clearance Portal</h2>
-          <p>Logged in as: <strong id="studentWelcomeName" class="text-primary">Benedict Uchechukwu</strong> • Matric: <span class="badge badge-eligible font-mono" id="studentMatricBadge">GWU/CSC/22/001</span></p>
+          <h2>Student Attendance &amp; NUC Clearance Portal</h2>
+          <p>Logged in as: <strong id="studentWelcomeName" class="text-primary">Benedict Uchechukwu</strong> • Matric: <span class="badge badge-eligible font-mono" id="studentMatricBadge">GWU/CSC/22/001</span> • <span id="studentDeptBadge" class="text-muted">Computer Science 400L</span></p>
         </div>
         <button class="btn btn-primary" id="btnOpenDocketModal">
           📜 Generate Exam Clearance Docket
@@ -335,7 +341,15 @@
 
       <!-- Lecture History Breakdown -->
       <div class="glass-card">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">🗓️ Detailed Session Attendance History (CSC 401)</h3>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0;">🗓️ Detailed Session Attendance History (<span id="studentHistoryCourseCode" class="text-primary font-mono">All Courses</span>)</h3>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <label for="studentHistoryCourseSelect" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">Filter Course:</label>
+            <select id="studentHistoryCourseSelect" class="form-control font-bold font-mono" style="width: auto; padding: 6px 12px; font-size: 0.82rem;" onchange="smartBioApp.renderStudentPortal()">
+              <!-- Dynamically populated via app.js -->
+            </select>
+          </div>
+        </div>
         <div class="table-responsive">
           <table class="data-table">
             <thead>
@@ -363,8 +377,8 @@
     <section class="portal-view" id="adminPortalView">
       <div class="view-header">
         <div class="view-title-group">
-          <h2>System Administration & NDPA 2023 Audit Console</h2>
-          <p>Institutional Overview: Global Wealth University • Academic Session 2025/2026</p>
+          <h2>System Administration &amp; NDPA 2023 Audit Console</h2>
+          <p>Institutional Overview: Global Wealth University • Academic Session <span id="adminActiveSessionLabel" class="text-primary font-bold">2025/2026</span> • <span id="adminActiveSemesterLabel">Second Semester</span></p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button class="btn btn-primary btn-sm" id="btnAdminSeedCloud" onclick="smartBioApp.seedCloudFirestore()">
@@ -386,7 +400,7 @@
           <div class="stat-content">
             <h4>Enrolled Students</h4>
             <div class="stat-value" id="adminStatTotalStudents">5</div>
-            <div class="stat-meta">Computer Science 400L</div>
+            <div class="stat-meta" id="adminStatMetaStudents">Across All Departments</div>
           </div>
         </div>
         <div class="stat-card">
@@ -402,7 +416,7 @@
           <div class="stat-content">
             <h4>Active Courses</h4>
             <div class="stat-value" id="adminStatTotalCourses">4</div>
-            <div class="stat-meta">Second Semester 25/26</div>
+            <div class="stat-meta" id="adminStatMetaCourses">Active Curriculum</div>
           </div>
         </div>
         <div class="stat-card">
@@ -410,7 +424,7 @@
           <div class="stat-content">
             <h4>Held Sessions</h4>
             <div class="stat-value" id="adminStatTotalSessions">10</div>
-            <div class="stat-meta">Average Att. 86.4%</div>
+            <div class="stat-meta" id="adminStatMetaSessions">Average Att. 86.4%</div>
           </div>
         </div>
       </div>
