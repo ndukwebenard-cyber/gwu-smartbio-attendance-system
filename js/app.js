@@ -1918,8 +1918,6 @@ class SmartBioApp {
 
   // 6. Scanner Terminal Logic
   bindScannerEvents() {
-  // 6. Scanner Terminal Logic
-  bindScannerEvents() {
     const platen = document.getElementById('opticalPlaten');
     if (platen) {
       platen.addEventListener('click', () => this.runTerminalScan('NORMAL'));

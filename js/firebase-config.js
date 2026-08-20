@@ -572,6 +572,8 @@ class CloudSyncEngine {
       modalBadge.innerText = this.isConnected ? '🟢 ONLINE (LIVE FIRESTORE)' : '🟠 LOCAL STORAGE (OFFLINE)';
     }
   }
+}
+
 window.smartBioCloud = new CloudSyncEngine();
 
 // Auto-boot Firebase Cloud connection on startup
