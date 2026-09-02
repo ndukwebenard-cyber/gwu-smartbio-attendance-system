@@ -805,8 +805,8 @@ class SmartBioApp {
     window.smartBioAudio.playScanLaser();
 
     try {
-      // 1. Native WebAuthn FIDO2 Biometric Handshake
-      if (window.smartBioBiometric && window.smartBioBiometric.webAuthn && window.smartBioBiometric.webAuthn.isSupported() && targetUser.hasBiometrics) {
+      // 1. Native WebAuthn FIDO2 Biometric Handshake (only if a passkey was enrolled on this device)
+      if (window.smartBioBiometric && window.smartBioBiometric.webAuthn && window.smartBioBiometric.webAuthn.isSupported() && targetUser.hasBiometrics && targetUser.credentialId) {
         try {
           const authResult = await window.smartBioBiometric.authenticateWithWebAuthn(targetUser);
           if (authResult && authResult.success) {
@@ -823,7 +823,7 @@ class SmartBioApp {
             return;
           }
         } catch (webAuthnErr) {
-          console.warn('WebAuthn prompt bypassed, falling back to simulated optical terminal:', webAuthnErr.message);
+          console.warn('WebAuthn prompt bypassed or cancelled, falling back to simulated optical terminal:', webAuthnErr.message);
         }
       }
 
@@ -1942,12 +1942,18 @@ class SmartBioApp {
           return;
         }
 
+        const studentId = this.currentUserId || 4;
+        const user = window.smartBioData.getUserById(studentId);
+        if (!user || !user.credentialId) {
+          this.showToast('ℹ️ No device passkey enrolled yet. Please open Profile > "Enroll / Test Device Passkey" to register your fingerprint, or use the Optical Scanner below.', 'warning');
+          return;
+        }
+
         try {
-          const user = window.smartBioData.getUserById(4); // Benedict
           const res = await window.smartBioBiometric.authenticateWithWebAuthn(user);
           if (res && res.success) {
             window.smartBioAudio.playSuccessChime();
-            this.showToast('WebAuthn Authenticator Verified Successfully!', 'success');
+            this.showToast('✅ WebAuthn Hardware Passkey Verified Successfully!', 'success');
             window.smartBioCloud.recordAttendance({
               sessionId: activeSess.id,
               courseId: activeSess.courseId,
@@ -1959,7 +1965,11 @@ class SmartBioApp {
             });
           }
         } catch (e) {
-          this.showToast('WebAuthn verification cancelled or unavailable on device', 'warning');
+          if (e.name === 'NotAllowedError') {
+            this.showToast('Passkey verification was cancelled.', 'warning');
+          } else {
+            this.showToast('WebAuthn verification cancelled or unavailable on device', 'warning');
+          }
         }
       });
     }
@@ -2178,8 +2188,13 @@ class SmartBioApp {
     // Biometric Status
     if (user.hasBiometrics) {
       if (bioStatusBadge) {
-        bioStatusBadge.innerText = '✓ ENROLLED (NDPA 2023)';
-        bioStatusBadge.className = 'badge badge-eligible';
+        if (user.credentialId) {
+          bioStatusBadge.innerText = '✓ PASSKEY LINKED (FIDO2)';
+          bioStatusBadge.className = 'badge badge-eligible';
+        } else {
+          bioStatusBadge.innerText = '✓ ENROLLED (NDPA 2023)';
+          bioStatusBadge.className = 'badge badge-eligible';
+        }
       }
       if (bioHashEl) {
         bioHashEl.innerText = user.fingerTemplate || 'SHA256:8f4c2e91b637dae15091726a84d29f03';
@@ -2253,10 +2268,11 @@ class SmartBioApp {
     if (!currentUser) return;
 
     if (mode === 'WEBAUTHN') {
-      this.showToast('Triggering WebAuthn device passkey enrollment (Windows Hello / Touch ID / Passkey)...', 'info');
+      this.showToast('Triggering WebAuthn device passkey enrollment (Fingerprint / Touch ID / Windows Hello)...', 'info');
       try {
-        const res = await window.smartBioBiometric.authenticateWithWebAuthn(currentUser);
+        const res = await window.smartBioBiometric.enrollWebAuthn(currentUser);
         currentUser.hasBiometrics = true;
+        currentUser.credentialId = res.credentialId;
         currentUser.fingerTemplate = `WEBAUTHN:FIDO2:${res.credentialId ? res.credentialId.slice(0, 24) : 'PASSKEY_' + Date.now().toString(36)}`;
 
         const data = window.smartBioData.load();
@@ -2269,17 +2285,22 @@ class SmartBioApp {
           try {
             await window.smartBioCloud.db.collection('users').doc(String(currentUser.id)).update({
               hasBiometrics: true,
+              credentialId: currentUser.credentialId,
               fingerTemplate: currentUser.fingerTemplate
             });
           } catch (e) {}
         }
 
         window.smartBioAudio.playSuccessChime();
-        this.showToast(`✓ Hardware WebAuthn Passkey successfully registered for ${currentUser.fullName}!`, 'success');
+        this.showToast(`✅ Hardware WebAuthn Passkey successfully registered for ${currentUser.fullName}!`, 'success');
         this.openProfileModal(); // Refresh profile UI
       } catch (err) {
         console.warn('WebAuthn registration error:', err);
-        this.showToast('WebAuthn prompt was cancelled or not supported on this device. You can test via the Optical Scanner.', 'warning');
+        if (err.name === 'NotAllowedError') {
+          this.showToast('Passkey registration was cancelled or timed out. Please try again when prompted.', 'warning');
+        } else {
+          this.showToast(`Passkey notice: ${err.message}. You can test via the Optical Scanner below.`, 'warning');
+        }
       }
     } else if (mode === 'OPTICAL') {
       this.showToast('Simulating physical optical scanner capture...', 'info');

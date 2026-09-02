@@ -27,12 +27,20 @@ class BiometricProvider {
 class WebAuthnProvider extends BiometricProvider {
   constructor() {
     super('WebAuthn FIDO2 / Passkey Authenticator', 'WEBAUTHN_HARDWARE');
-    this.rpId = window.location.hostname || 'localhost';
     this.rpName = 'Global Wealth University SmartBio';
   }
 
   isSupported() {
     return !!(window.PublicKeyCredential && window.navigator.credentials);
+  }
+
+  getRpId() {
+    const hostname = window.location.hostname;
+    // WebAuthn requires rpId to be a valid domain or omitted. IP addresses (like 127.0.0.1) are rejected if specified.
+    if (!hostname || /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
+      return undefined;
+    }
+    return hostname;
   }
 
   // Generate cryptographically secure random challenge buffer
@@ -71,25 +79,27 @@ class WebAuthnProvider extends BiometricProvider {
     }
 
     const challenge = this.generateChallenge();
-    const userIdBuffer = new TextEncoder().encode(user.identifier || user.email);
+    const userIdBuffer = new TextEncoder().encode(user.identifier || user.email || 'student_' + (user.id || Date.now()));
+
+    const rp = { name: this.rpName };
+    const rpId = this.getRpId();
+    if (rpId) {
+      rp.id = rpId;
+    }
 
     const publicKeyOptions = {
       challenge: challenge,
-      rp: {
-        id: this.rpId,
-        name: this.rpName
-      },
+      rp: rp,
       user: {
         id: userIdBuffer,
-        name: user.email,
-        displayName: user.fullName
+        name: user.email || user.identifier || 'student@gwu.edu.ng',
+        displayName: user.fullName || user.email || 'SmartBio Student'
       },
       pubKeyCredParams: [
         { alg: -7, type: 'public-key' },  // ES256 (ECDSA)
         { alg: -257, type: 'public-key' } // RS256 (RSA)
       ],
       authenticatorSelection: {
-        authenticatorAttachment: 'platform', // Built-in Touch ID, Windows Hello, Face ID
         userVerification: 'preferred',
         requireResidentKey: false
       },
@@ -98,6 +108,9 @@ class WebAuthnProvider extends BiometricProvider {
     };
 
     const credential = await navigator.credentials.create({ publicKey: publicKeyOptions });
+    if (!credential || !credential.rawId) {
+      throw new Error('Passkey creation returned empty credential.');
+    }
     const rawIdBase64 = this.bufferToBase64(credential.rawId);
 
     // Securely package registered credential metadata
@@ -106,7 +119,7 @@ class WebAuthnProvider extends BiometricProvider {
       algorithm: -7,
       type: 'public-key',
       enrolledAt: new Date().toISOString(),
-      userIdentifier: user.identifier
+      userIdentifier: user.identifier || user.email
     };
 
     return {
@@ -123,7 +136,7 @@ class WebAuthnProvider extends BiometricProvider {
   // Step B: Authentication / Assertion Verification via navigator.credentials.get()
   async verify(user, options = {}) {
     if (!this.isSupported()) {
-      throw new Error('WebAuthn API not available.');
+      throw new Error('WebAuthn API not available in this browser environment.');
     }
 
     const challenge = this.generateChallenge();
@@ -131,20 +144,28 @@ class WebAuthnProvider extends BiometricProvider {
 
     // If user has registered credential ID, bind assertion to it
     if (user && user.credentialId) {
-      allowCredentials.push({
-        id: this.base64ToBuffer(user.credentialId),
-        type: 'public-key',
-        transports: ['internal', 'hybrid', 'usb', 'nfc', 'ble']
-      });
+      try {
+        allowCredentials.push({
+          id: this.base64ToBuffer(user.credentialId),
+          type: 'public-key',
+          transports: ['internal', 'hybrid', 'usb', 'nfc', 'ble']
+        });
+      } catch (e) {
+        console.warn('Unable to parse credentialId:', e);
+      }
     }
 
     const getOptions = {
       challenge: challenge,
-      rpId: this.rpId,
       timeout: 60000,
-      userVerification: 'required',
+      userVerification: 'preferred',
       allowCredentials: allowCredentials.length ? allowCredentials : undefined
     };
+
+    const rpId = this.getRpId();
+    if (rpId) {
+      getOptions.rpId = rpId;
+    }
 
     const assertion = await navigator.credentials.get({ publicKey: getOptions });
     if (!assertion || !assertion.id) {
