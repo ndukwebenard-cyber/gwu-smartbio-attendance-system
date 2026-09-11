@@ -48,7 +48,7 @@ class NUCComplianceEngine {
         (a.status === 'PRESENT' || a.status === 'FLAGGED_RESOLVED')
       ).length;
 
-      const percentage = totalHeld === 0 ? 100 : Number(((attended / totalHeld) * 100).toFixed(1));
+      const percentage = totalHeld === 0 ? 0.0 : Number(((attended / totalHeld) * 100).toFixed(1));
       const minThreshold = course.minAttendancePct || this.STATUTORY_MIN_PCT;
       
       let status = 'ELIGIBLE';
@@ -57,7 +57,7 @@ class NUCComplianceEngine {
 
       if (totalHeld === 0) {
         status = 'PENDING';
-        statusClass = 'badge-at-risk';
+        statusClass = 'badge-eligible';
         badgeLabel = 'NOT STARTED (0 HELD)';
       } else if (percentage < this.WARNING_THRESHOLD_PCT) {
         status = 'INELIGIBLE';
@@ -191,7 +191,10 @@ class NUCComplianceEngine {
 
     let courseRows = '';
     compliance.courseStats.forEach((stat, idx) => {
-      const isCleared = stat.status === 'ELIGIBLE';
+      const isPending = stat.status === 'PENDING' || stat.totalHeld === 0;
+      const isCleared = stat.status === 'ELIGIBLE' || isPending;
+      const stampText = isPending ? '⏳ REGISTERED' : (isCleared ? '✓ CLEARED' : '✗ BARRED');
+      const stampClass = isCleared ? 'stamp-cleared' : 'stamp-barred';
       courseRows += `
         <tr>
           <td>${idx + 1}</td>
@@ -199,10 +202,10 @@ class NUCComplianceEngine {
           <td>${stat.course.title}</td>
           <td>${stat.course.units}</td>
           <td>${stat.attended} / ${stat.totalHeld}</td>
-          <td><strong>${stat.percentage}%</strong></td>
+          <td><strong>${stat.totalHeld === 0 ? '0.0%' : stat.percentage + '%'}</strong></td>
           <td>
-            <span class="stamp-badge ${isCleared ? 'stamp-cleared' : 'stamp-barred'}">
-              ${isCleared ? '✓ CLEARED' : '✗ BARRED'}
+            <span class="stamp-badge ${stampClass}">
+              ${stampText}
             </span>
           </td>
         </tr>

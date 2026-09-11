@@ -10,6 +10,37 @@ class SmartBioApp {
     this.activeLectureSession = null;
     this.sessionTimerInterval = null;
     this.sessionSecondsElapsed = 0;
+    
+    // Multi-tab synchronization bus (zero-latency cross-tab communication)
+    try {
+      this.syncChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('smartbio_channel') : null;
+      if (this.syncChannel) {
+        this.syncChannel.onmessage = (e) => this.handleChannelMessage(e.data);
+      }
+    } catch (e) {
+      this.syncChannel = null;
+    }
+  }
+
+  broadcastSync(type, payload) {
+    if (this.syncChannel) {
+      try {
+        this.syncChannel.postMessage({ type, payload });
+      } catch (err) {}
+    }
+  }
+
+  handleChannelMessage(msg) {
+    if (!msg || !msg.type) return;
+    if (msg.type === 'SESSION_UPDATE') {
+      window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: msg.payload }));
+    } else if (msg.type === 'ATTENDANCE_STREAM') {
+      window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: msg.payload }));
+    } else if (msg.type === 'FLAGGED_UPDATE') {
+      window.dispatchEvent(new CustomEvent('smartbio:flagged_update', { detail: msg.payload }));
+    } else if (msg.type === 'COURSES_UPDATED') {
+      this.refreshAllCourseUI(msg.payload && msg.payload.preferredCourseId);
+    }
   }
 
   init() {
@@ -48,6 +79,7 @@ class SmartBioApp {
 
     this.populateDepartmentDropdowns();
     this.populateLectureCourseDropdown();
+    this.populateLoginRoleDropdown();
     this.updateRegMatricPreview();
     this.bindAutoCaseInputs();
 
@@ -508,14 +540,11 @@ class SmartBioApp {
     if (roleSelect) roleSelect.value = role;
     if (passwordInput) passwordInput.value = 'password123';
 
-    if (role === 'LECTURER' && emailInput) {
-      emailInput.value = 'o.adeyemi@smartbio.edu.ng';
-    } else if (role === 'CLASS_REP' && emailInput) {
-      emailInput.value = 'c.eze@student.gwu.edu';
-    } else if (role === 'STUDENT' && emailInput) {
-      emailInput.value = 'b.uche@student.gwu.edu';
-    } else if (role === 'ADMIN' && emailInput) {
-      emailInput.value = 'admin@smartbio.edu.ng';
+    const data = window.smartBioData.load();
+    const users = data.users || [];
+    const user = users.find(u => u.role === role);
+    if (user && emailInput) {
+      emailInput.value = user.email;
     }
 
     this.showToast(`Auto-filled demo credentials for ${role}`, 'info');
@@ -855,6 +884,37 @@ class SmartBioApp {
 
   // 2. Global Event Listeners (Syncs across all views & devices)
   listenToGlobalEvents() {
+    // Multi-tab cross-window storage sync listener
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'smartbio_active_session') {
+        if (!e.newValue) {
+          window.dispatchEvent(new CustomEvent('smartbio:session_update', { 
+            detail: { session: null, status: 'CONCLUDED', isExplicitEnd: true } 
+          }));
+        } else {
+          try {
+            const sess = JSON.parse(e.newValue);
+            if (sess && sess.status === 'ACTIVE') {
+              window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: sess }));
+            }
+          } catch (err) {}
+        }
+      } else if (e.key === 'smartbio_db_v1') {
+        // DataStore changed in another tab, re-render active portal
+        if (window.smartBioData) window.smartBioData.data = window.smartBioData.load();
+        if (this.currentView === 'LECTURER') {
+          this.renderLiveAttendanceStream();
+          this.renderLecturerDefaulterTable();
+        } else if (this.currentView === 'STUDENT') {
+          this.renderStudentPortal();
+        } else if (this.currentView === 'CLASS_REP') {
+          this.renderClassRepPortal();
+        } else if (this.currentView === 'ADMIN') {
+          this.renderAdminPortal();
+        }
+      }
+    });
+
     // When a scan happens anywhere (terminal, phone, or test)
     window.addEventListener('smartbio:attendance_stream', (e) => {
       this.handleIncomingAttendance(e.detail);
@@ -863,12 +923,17 @@ class SmartBioApp {
     // When flagged exceptions change
     window.addEventListener('smartbio:flagged_update', () => {
       this.renderFlaggedQueue();
-      if (this.currentRole === 'ADMIN') this.renderAdminPortal();
+      if (this.authenticatedUser && this.authenticatedUser.role === 'ADMIN') this.renderAdminPortal();
     });
 
     // When active lecture session state changes in Firestore Cloud or local bus
     window.addEventListener('smartbio:session_update', (e) => {
-      const sessionData = e.detail;
+      const detail = e.detail;
+      const sessionData = (detail && detail.session !== undefined) ? detail.session : detail;
+      const isConcluded = !sessionData || 
+        (sessionData && (sessionData.status === 'CONCLUDED' || sessionData.status === 'ENDED')) ||
+        (detail && (detail.status === 'CONCLUDED' || detail.status === 'ENDED' || detail.isExplicitEnd));
+
       if (sessionData && sessionData.status === 'ACTIVE') {
         this.activeLectureSession = sessionData;
         try {
@@ -879,10 +944,10 @@ class SmartBioApp {
         // If current role is student or class rep, notify with gentle alert
         if (this.currentView === 'STUDENT' || this.currentView === 'CLASS_REP') {
           window.smartBioAudio.playSuccessChime();
-          const course = (window.smartBioData.load().courses || []).find(c => c.id === sessionData.courseId) || { code: 'CSC 401' };
+          const course = (window.smartBioData.load().courses || []).find(c => c.id === sessionData.courseId) || { code: 'Course' };
           this.showToast(`🔔 Live Lecture Alert: ${course.code} is now in session at ${sessionData.venue}!`, 'info');
         }
-      } else if (e.isExplicitEnd || (!sessionData && !this.activeLectureSession)) {
+      } else if (isConcluded) {
         this.activeLectureSession = null;
         try {
           localStorage.removeItem('smartbio_active_session');
@@ -893,6 +958,15 @@ class SmartBioApp {
         if (banner) banner.classList.add('hidden');
         if (formBox) formBox.classList.remove('hidden');
         this.updateRoleSessionBanners(null);
+
+        // Refresh perspective-specific views
+        if (this.currentView === 'LECTURER') {
+          this.renderLiveAttendanceStream();
+        } else if (this.currentView === 'STUDENT') {
+          this.renderStudentPortal();
+        } else if (this.currentView === 'CLASS_REP') {
+          this.renderClassRepPortal();
+        }
       }
     });
   }
@@ -900,20 +974,31 @@ class SmartBioApp {
   handleIncomingAttendance(record) {
     if (!record) return;
 
-    // If lecturer is viewing live radar, prepend to table
+    // If lecturer is viewing live radar, handle real-time check-in stream
     const tableBody = document.getElementById('liveRadarTableBody');
     if (tableBody) {
-      const student = window.smartBioData.getUserById(record.studentId);
-      const tr = document.createElement('tr');
-      tr.style.animation = 'fade-in 0.4s ease forwards';
-      tr.innerHTML = `
-        <td><strong class="font-mono">${student ? student.identifier : 'N/A'}</strong></td>
-        <td>${student ? student.fullName : 'Student'}</td>
-        <td><span class="badge ${record.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${record.status}</span></td>
-        <td>${record.confidence}%</td>
-        <td>${record.time || new Date().toLocaleTimeString()}</td>
-      `;
-      tableBody.insertBefore(tr, tableBody.firstChild);
+      // Clear zero-state placeholder if currently rendered
+      const zeroState = tableBody.querySelector('.live-radar-zero-state');
+      if (zeroState) {
+        tableBody.innerHTML = '';
+      }
+
+      // Check if row already rendered for this student
+      const existingRow = Array.from(tableBody.querySelectorAll('tr')).find(tr => tr.dataset.studentId === String(record.studentId));
+      if (!existingRow) {
+        const student = window.smartBioData.getUserById(record.studentId);
+        const tr = document.createElement('tr');
+        tr.dataset.studentId = String(record.studentId);
+        tr.style.animation = 'fade-in 0.4s ease forwards';
+        tr.innerHTML = `
+          <td><strong class="font-mono">${student ? student.identifier : 'N/A'}</strong></td>
+          <td>${student ? student.fullName : 'Student'}</td>
+          <td><span class="badge ${record.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${record.status}</span></td>
+          <td>${record.confidence}%</td>
+          <td>${record.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+        `;
+        tableBody.insertBefore(tr, tableBody.firstChild);
+      }
     }
 
     // Refresh active view to reflect updated attendance percentages in real time
@@ -970,13 +1055,16 @@ class SmartBioApp {
       id: startTimeMs,
       startTimeMs: startTimeMs,
       courseId,
-      lecturerId: this.currentUserId,
+      lecturerId: this.currentUserId || currentUser.id,
       lecturerName: currentUser.fullName,
       topic,
       venue,
-      startTime: new Date().toLocaleTimeString(),
+      startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: 'ACTIVE'
     };
+
+    // Register active lecture session in DataStore so attendance logs and NUC compliance algorithms track it
+    window.smartBioData.addLectureSession(this.activeLectureSession);
 
     // Save session to localStorage so page refresh preserves live state and timer
     try {
@@ -985,15 +1073,17 @@ class SmartBioApp {
       console.warn('Storage persistence notice:', e);
     }
 
-    // Broadcast to Cloud Firestore & local event bus for zero-latency detection
+    // Broadcast to Cloud Firestore, local event bus, and multi-tab channel
     window.smartBioCloud.broadcastActiveSession(this.activeLectureSession);
     window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: this.activeLectureSession }));
+    this.broadcastSync('SESSION_UPDATE', this.activeLectureSession);
 
     this.renderActiveSessionUI(this.activeLectureSession);
+    this.renderLiveAttendanceStream();
 
     // Audit log with actorId
     window.smartBioData.addAuditLog({
-      actorId: this.currentUserId,
+      actorId: this.currentUserId || currentUser.id,
       actor: `${currentUser.fullName} (${currentUser.role})`,
       action: 'SESSION_START',
       details: `Started lecture session for ${course ? course.code : 'Course #' + courseId} (${topic}) at ${venue}`,
@@ -1014,7 +1104,7 @@ class SmartBioApp {
     const titleEl = document.getElementById('activeSessionTitle');
     const venueEl = document.getElementById('activeSessionVenue');
     const courseCodeEl = document.getElementById('activeSessionCourseCode');
-    const course = (window.smartBioData.load().courses || []).find(c => c.id === session.courseId) || { code: 'CSC 401', title: 'Advanced Software Engineering' };
+    const course = (window.smartBioData.load().courses || []).find(c => c.id === session.courseId) || { code: 'Course', title: 'Lecture Session' };
 
     if (titleEl) titleEl.innerText = session.topic;
     if (venueEl) venueEl.innerText = session.venue;
@@ -1047,7 +1137,7 @@ class SmartBioApp {
     const repBanner = document.getElementById('repLiveSessionBanner');
 
     if (session && session.status === 'ACTIVE') {
-      const c = course || (window.smartBioData.load().courses || []).find(item => item.id === session.courseId) || { code: 'CSC 401', title: 'Advanced Software Engineering' };
+      const c = course || (window.smartBioData.load().courses || []).find(item => item.id === session.courseId) || { code: 'Course', title: 'Lecture Session' };
       
       if (studentBanner) {
         studentBanner.classList.remove('hidden');
@@ -1057,8 +1147,8 @@ class SmartBioApp {
         const ven = document.getElementById('studentActiveVenue');
         if (cCode) cCode.innerText = c.code;
         if (topic) topic.innerText = session.topic || c.title;
-        if (lect) lect.innerText = session.lecturerName || 'Dr. Olawale Adeyemi';
-        if (ven) ven.innerText = session.venue || 'ICT Hall A';
+        if (lect) lect.innerText = session.lecturerName || 'Assigned Lecturer';
+        if (ven) ven.innerText = session.venue || 'Classroom';
       }
 
       if (repBanner) {
@@ -1069,8 +1159,8 @@ class SmartBioApp {
         const ven = document.getElementById('repActiveVenue');
         if (cCode) cCode.innerText = c.code;
         if (topic) topic.innerText = session.topic || c.title;
-        if (lect) lect.innerText = session.lecturerName || 'Dr. Olawale Adeyemi';
-        if (ven) ven.innerText = session.venue || 'ICT Hall A';
+        if (lect) lect.innerText = session.lecturerName || 'Assigned Lecturer';
+        if (ven) ven.innerText = session.venue || 'Classroom';
       }
     } else {
       if (studentBanner) studentBanner.classList.add('hidden');
@@ -1080,15 +1170,28 @@ class SmartBioApp {
 
   endActiveLectureSession() {
     if (this.sessionTimerInterval) clearInterval(this.sessionTimerInterval);
-    const currentUser = this.authenticatedUser || { fullName: 'Dr. Olawale Adeyemi', role: 'LECTURER', id: 2 };
+    const currentUser = this.authenticatedUser || { fullName: 'Faculty Member', role: 'LECTURER', id: 2 };
+    const endingSession = this.activeLectureSession;
 
-    // Clear active session from localStorage, Cloud Firestore & local event bus
+    if (endingSession) {
+      endingSession.status = 'CONCLUDED';
+      endingSession.endedAt = new Date().toISOString();
+      window.smartBioData.updateLectureSession(endingSession.id, {
+        status: 'CONCLUDED',
+        endedAt: endingSession.endedAt
+      });
+    }
+
+    // Clear active session from localStorage, Cloud Firestore, local event bus & multi-tab channel
     try {
       localStorage.removeItem('smartbio_active_session');
     } catch (e) {}
 
-    window.smartBioCloud.endActiveSessionCloud();
-    window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null, isExplicitEnd: true }));
+    window.smartBioCloud.endActiveSessionCloud(endingSession);
+    window.dispatchEvent(new CustomEvent('smartbio:session_update', { 
+      detail: { session: null, status: 'CONCLUDED', isExplicitEnd: true } 
+    }));
+    this.broadcastSync('SESSION_UPDATE', { session: null, status: 'CONCLUDED', isExplicitEnd: true });
     this.activeLectureSession = null;
 
     const banner = document.getElementById('liveSessionActiveBanner');
@@ -1097,12 +1200,13 @@ class SmartBioApp {
     if (formBox) formBox.classList.remove('hidden');
 
     this.updateRoleSessionBanners(null);
+    this.renderLiveAttendanceStream();
 
     window.smartBioData.addAuditLog({
-      actorId: this.currentUserId,
+      actorId: this.currentUserId || currentUser.id,
       actor: `${currentUser.fullName} (${currentUser.role})`,
       action: 'SESSION_END',
-      details: `Concluded live lecture session`,
+      details: `Concluded live lecture session for ${endingSession ? endingSession.topic : 'Course'}`,
       time: new Date().toLocaleString()
     });
 
@@ -1112,7 +1216,7 @@ class SmartBioApp {
   renderLecturerPortal() {
     const data = window.smartBioData.load();
     const user = this.authenticatedUser;
-    const lecturer = (user && user.role === 'LECTURER') ? user : (window.smartBioData.getUserById(2) || { fullName: 'Dr. Olawale Adeyemi', departmentId: 1 });
+    const lecturer = (user && user.role === 'LECTURER') ? user : (window.smartBioData.getUsers().find(u => u.role === 'LECTURER') || { fullName: 'Faculty Member', departmentId: 1 });
     
     const nameEl = document.getElementById('lecturerWelcomeName');
     const deptEl = document.getElementById('lecturerDeptName');
@@ -1126,6 +1230,7 @@ class SmartBioApp {
       this.renderActiveSessionUI(this.activeLectureSession);
     }
 
+    this.populateLectureCourseDropdown();
     this.populateDefaulterCourseDropdown();
     this.renderLiveAttendanceStream();
     this.renderFlaggedQueue();
@@ -1137,43 +1242,88 @@ class SmartBioApp {
     if (!tableBody) return;
 
     const data = window.smartBioData.load();
-    const records = (data.attendanceRecords || []).slice(-8).reverse();
 
-    if (records.length === 0) {
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
-            📡 Real-Time Synchronizer Active — No attendance scans recorded yet for this session.
-          </td>
-        </tr>
-      `;
-      return;
+    if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
+      // 1. ACTIVE SESSION MODE: Strictly show verified attendees for THIS live session
+      const activeSessId = Number(this.activeLectureSession.id);
+      const activeCourse = (data.courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
+      const records = (data.attendanceRecords || [])
+        .filter(a => Number(a.sessionId) === activeSessId && (a.status === 'PRESENT' || a.status === 'FLAGGED_RESOLVED'))
+        .slice()
+        .reverse();
+
+      if (records.length === 0) {
+        tableBody.innerHTML = `
+          <tr class="live-radar-zero-state">
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+              <div style="font-size: 1.6rem; margin-bottom: 8px;">📡</div>
+              <strong style="color: var(--primary); font-size: 0.95rem;">Live Session Active: ${activeCourse.code} (${this.activeLectureSession.venue || 'Classroom'})</strong>
+              <p style="font-size: 0.82rem; margin: 6px 0 0; color: var(--text-muted);">
+                Waiting for students to scan biometrics at the terminal. Real-time check-ins will appear here automatically.
+              </p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      let html = '';
+      records.forEach(r => {
+        const student = window.smartBioData.getUserById(r.studentId) || { fullName: 'Student', identifier: 'N/A' };
+        const scanTime = r.timestamp ? new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (r.time || '09:00 AM');
+        html += `
+          <tr data-student-id="${r.studentId}">
+            <td><strong class="font-mono">${student.identifier}</strong></td>
+            <td>${student.fullName}</td>
+            <td><span class="badge ${r.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${r.status}</span></td>
+            <td>${r.confidence || 98.4}%</td>
+            <td>${scanTime}</td>
+          </tr>
+        `;
+      });
+      tableBody.innerHTML = html;
+    } else {
+      // 2. NO ACTIVE SESSION: Show most recent attendance scans labeled with session metadata
+      const records = (data.attendanceRecords || []).slice(-8).reverse();
+
+      if (records.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              📡 Real-Time Synchronizer Ready — Start a lecture session above to begin live check-in monitoring.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      let html = '';
+      records.forEach(r => {
+        const student = window.smartBioData.getUserById(r.studentId) || { fullName: 'Student', identifier: 'N/A' };
+        const session = window.smartBioData.getLectureSessionById(r.sessionId);
+        const scanTime = r.timestamp ? new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (r.time || '09:00 AM');
+        const sessionLabel = session ? `Session #${session.id}` : `Concluded`;
+        html += `
+          <tr style="opacity: 0.88;">
+            <td><strong class="font-mono">${student.identifier}</strong></td>
+            <td>${student.fullName} <span style="font-size:0.7rem; color:var(--text-muted); margin-left:4px;">(${sessionLabel})</span></td>
+            <td><span class="badge ${r.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${r.status}</span></td>
+            <td>${r.confidence || 98.4}%</td>
+            <td>${scanTime}</td>
+          </tr>
+        `;
+      });
+      tableBody.innerHTML = html;
     }
-
-    let html = '';
-    records.forEach(r => {
-      const student = window.smartBioData.getUserById(r.studentId) || { fullName: 'Student', identifier: 'GWU/CSC/22/001' };
-      const scanTime = r.timestamp ? new Date(r.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (r.time || '09:00 AM');
-      html += `
-        <tr>
-          <td><strong class="font-mono">${student.identifier}</strong></td>
-          <td>${student.fullName}</td>
-          <td><span class="badge ${r.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${r.status}</span></td>
-          <td>${r.confidence || 98.4}%</td>
-          <td>${scanTime}</td>
-        </tr>
-      `;
-    });
-    tableBody.innerHTML = html;
   }
 
-  populateDefaulterCourseDropdown() {
+  populateDefaulterCourseDropdown(preferredCourseId = null) {
     const select = document.getElementById('defaulterCourseSelect');
     if (!select) return;
 
     const data = window.smartBioData.load();
     const courses = data.courses || [];
-    const currentVal = select.value;
+    const currentVal = preferredCourseId ? String(preferredCourseId) : select.value;
 
     let html = '';
     courses.forEach(c => {
@@ -1287,30 +1437,34 @@ class SmartBioApp {
     const courseTitleEl = document.getElementById('lecturerDefaulterCourseCode');
     if (courseTitleEl) courseTitleEl.innerText = course.code;
 
-    const students = (data.users || []).filter(u => u.role === 'STUDENT' || u.role === 'CLASS_REP');
+    const enrolledStudents = window.smartBioData.getEnrolledStudents(selectedCourseId);
     
     let totalConducted = 0;
     let html = '';
 
-    students.forEach(student => {
+    enrolledStudents.forEach(student => {
       const comp = window.smartBioCompliance.calculateStudentCompliance(student.id);
       if (!comp || !comp.courseStats || comp.courseStats.length === 0) return;
-      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId) || comp.courseStats[0];
+      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId);
+      if (!stat) return;
 
       if (stat.totalHeld > totalConducted) totalConducted = stat.totalHeld;
+
+      let statusNotice = '<span class="text-success font-bold">✓ Cleared</span>';
+      if (stat.status === 'PENDING') {
+        statusNotice = '<span class="text-muted font-bold">⏳ Baseline Registered</span>';
+      } else if (stat.status !== 'ELIGIBLE') {
+        statusNotice = `<span class="text-danger font-bold">Needs +${stat.classesNeeded} classes</span>`;
+      }
 
       html += `
         <tr>
           <td><strong class="font-mono">${student.identifier}</strong></td>
           <td>${student.fullName}</td>
           <td>${stat.attended} / ${stat.totalHeld}</td>
-          <td><strong>${stat.percentage}%</strong></td>
+          <td><strong>${stat.totalHeld === 0 ? '0.0%' : stat.percentage + '%'}</strong></td>
           <td><span class="badge ${stat.statusClass}">${stat.badgeLabel}</span></td>
-          <td>
-            ${stat.status === 'ELIGIBLE' 
-              ? '<span class="text-success font-bold">✓ Cleared</span>' 
-              : `<span class="text-danger font-bold">Needs +${stat.classesNeeded} classes</span>`}
-          </td>
+          <td>${statusNotice}</td>
         </tr>
       `;
     });
@@ -1395,7 +1549,9 @@ class SmartBioApp {
     const repStatMeta = document.getElementById('repStatMetaCourse');
     if (repStatMeta) repStatMeta.innerText = `${course.code} Cohort`;
 
-    const students = data.users.filter(u => u.role === 'STUDENT' || u.role === 'CLASS_REP');
+    const enrolledStudents = window.smartBioData.getEnrolledStudents(selectedCourseId);
+    const repStatEnrolled = document.getElementById('repStatEnrolled');
+    if (repStatEnrolled) repStatEnrolled.innerText = enrolledStudents.length;
     
     let presentCount = 0;
     let atRiskCount = 0;
@@ -1403,26 +1559,30 @@ class SmartBioApp {
     const tableBody = document.getElementById('repDefaultersTableBody');
     let html = '';
 
-    students.forEach(student => {
+    enrolledStudents.forEach(student => {
       const comp = window.smartBioCompliance.calculateStudentCompliance(student.id);
       if (!comp || !comp.courseStats || comp.courseStats.length === 0) return;
-      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId) || comp.courseStats[0];
+      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId);
+      if (!stat) return;
 
       if (stat.status === 'ELIGIBLE') presentCount++;
       if (stat.status === 'AT_RISK' || stat.status === 'INELIGIBLE') atRiskCount++;
+
+      let actionNotice = '<span class="text-success font-bold">✓ In Good Standing</span>';
+      if (stat.status === 'PENDING') {
+        actionNotice = '<span class="text-muted font-bold">⏳ Baseline Registered</span>';
+      } else if (stat.status === 'AT_RISK' || stat.status === 'INELIGIBLE') {
+        actionNotice = `<span class="text-warning font-bold">⚠️ Must attend next ${stat.classesNeeded} classes</span>`;
+      }
 
       html += `
         <tr>
           <td><strong class="font-mono">${student.identifier}</strong></td>
           <td>${student.fullName}</td>
           <td>${stat.attended} / ${stat.totalHeld}</td>
-          <td><strong>${stat.percentage}%</strong></td>
+          <td><strong>${stat.totalHeld === 0 ? '0.0%' : stat.percentage + '%'}</strong></td>
           <td><span class="badge ${stat.statusClass}">${stat.badgeLabel}</span></td>
-          <td>
-            ${stat.status === 'ELIGIBLE' 
-              ? '<span class="text-success font-bold">✓ In Good Standing</span>' 
-              : `<span class="text-warning font-bold">⚠️ Must attend next ${stat.classesNeeded} classes</span>`}
-          </td>
+          <td>${actionNotice}</td>
         </tr>
       `;
     });
@@ -1433,6 +1593,8 @@ class SmartBioApp {
 
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
       this.updateRoleSessionBanners(this.activeLectureSession);
+    } else {
+      this.updateRoleSessionBanners(null);
     }
 
     const totalEnrolledEl = document.getElementById('repStatEnrolled');
@@ -1508,6 +1670,10 @@ class SmartBioApp {
         let fillClass = 'fill-eligible';
         if (stat.status === 'AT_RISK') fillClass = 'fill-at-risk';
         if (stat.status === 'INELIGIBLE') fillClass = 'fill-ineligible';
+        if (stat.status === 'PENDING') fillClass = 'fill-pending';
+
+        const isPending = stat.status === 'PENDING';
+        const isEligible = stat.status === 'ELIGIBLE';
 
         html += `
           <div class="course-gauge-card">
@@ -1529,8 +1695,8 @@ class SmartBioApp {
             </div>
             <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 14px;">
               <span style="font-size: 1.4rem; font-weight: 800;">${stat.percentage}%</span>
-              <span style="font-size: 0.75rem; color: ${stat.status === 'ELIGIBLE' ? 'var(--success)' : 'var(--danger)'}">
-                ${stat.status === 'ELIGIBLE' ? 'NUC 75% Mandate Met' : `Deficit: Attend next ${stat.classesNeeded} classes`}
+              <span style="font-size: 0.75rem; color: ${isEligible ? 'var(--success)' : (isPending ? 'var(--text-muted)' : 'var(--danger)')}">
+                ${isEligible ? 'NUC 75% Mandate Met' : (isPending ? 'Course Inception (No lectures held yet)' : `Deficit: Attend next ${stat.classesNeeded} classes`)}
               </span>
             </div>
           </div>
@@ -1541,6 +1707,8 @@ class SmartBioApp {
 
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
       this.updateRoleSessionBanners(this.activeLectureSession);
+    } else {
+      this.updateRoleSessionBanners(null);
     }
 
     // Populate course dropdown for history & render lecture log
@@ -1727,6 +1895,21 @@ class SmartBioApp {
     if (sessionLabelEl) sessionLabelEl.innerText = session.name;
     if (semesterLabelEl) semesterLabelEl.innerText = `${semester.type === 'SECOND' ? 'Second' : 'First'} Semester`;
 
+    // Snapshot button status
+    const revertBtn = document.getElementById('btnAdminRevertSnapshot');
+    if (revertBtn) {
+      const hasSnap = window.smartBioData.hasSnapshot();
+      if (hasSnap) {
+        const meta = window.smartBioData.getSnapshotMetadata();
+        const timeStr = meta && meta.createdAt ? new Date(meta.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        revertBtn.innerText = `🔄 Revert Snapshot (${timeStr || 'Ready'})`;
+        revertBtn.style.opacity = '1';
+      } else {
+        revertBtn.innerText = '🔄 Revert Snapshot (None)';
+        revertBtn.style.opacity = '0.6';
+      }
+    }
+
     // 0. Departments table
     this.renderAdminDepartments(data);
 
@@ -1856,41 +2039,138 @@ class SmartBioApp {
       console.error('Firestore export notice:', err);
       // Fallback: Export local JSON backup if Firestore offline
       const localData = window.smartBioData.load();
-      const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localData, null, 2));
+      const envelope = {
+        app: 'SmartBio Attendance System',
+        exportedAt: new Date().toISOString(),
+        version: '1.0',
+        data: localData
+      };
+      const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(envelope, null, 2));
       const a = document.createElement('a');
       a.setAttribute("href", jsonString);
-      a.setAttribute("download", `gwu_smartbio_local_backup_${new Date().toISOString().slice(0,10)}.json`);
+      a.setAttribute("download", `gwu_smartbio_full_backup_${new Date().toISOString().slice(0,10)}.json`);
       document.body.appendChild(a);
       a.click();
       a.remove();
-      this.showToast('ℹ️ Exported local database backup (Firestore offline).', 'info');
+      this.showToast('ℹ️ Exported complete local database backup.', 'info');
     }
   }
 
-  async cleanFirestoreData() {
+  handleCreateBackupSnapshot() {
+    try {
+      const snap = window.smartBioData.createSnapshot('Manual Admin Snapshot');
+      window.smartBioAudio.playSuccessChime();
+      this.showToast(`📦 Backup snapshot created! (${snap.metadata.totalUsers} users, ${snap.metadata.totalCourses} courses, ${snap.metadata.totalAttendance} attendance records saved).`, 'success');
+      if (this.currentView === 'ADMIN') this.renderAdminPortal();
+    } catch (e) {
+      console.error(e);
+      this.showToast('Failed to create backup snapshot: ' + e.message, 'error');
+    }
+  }
+
+  handleRevertSnapshot() {
+    if (!window.smartBioData.hasSnapshot()) {
+      alert('ℹ️ No Snapshot Available:\n\nThere is no rollback snapshot saved in local storage. Click "Create Backup Snapshot" to create one first.');
+      return;
+    }
+
+    const meta = window.smartBioData.getSnapshotMetadata();
+    const createdStr = meta && meta.createdAt ? new Date(meta.createdAt).toLocaleString() : 'Recent';
+    const recCount = meta && meta.metadata ? `${meta.metadata.totalUsers} users, ${meta.metadata.totalCourses} courses, ${meta.metadata.totalAttendance} attendance records` : '';
+
+    if (!confirm(`🔄 Rollback to Snapshot?\n\nSnapshot created: ${createdStr}\nContained: ${recCount}\n\nDo you want to restore this snapshot? Any unbacked-up changes since then will be reverted.`)) {
+      return;
+    }
+
+    try {
+      window.smartBioData.revertToSnapshot();
+      window.smartBioAudio.playSuccessChime();
+      this.showToast('✅ Successfully restored database to previous snapshot!', 'success');
+      this.refreshCurrentPortal();
+    } catch (e) {
+      console.error(e);
+      alert('Revert Error: ' + e.message);
+      this.showToast('Revert failed: ' + e.message, 'error');
+    }
+  }
+
+  triggerRestoreFileInput() {
+    const fileInput = document.getElementById('inputRestoreBackupFile');
+    if (fileInput) {
+      fileInput.value = '';
+      fileInput.click();
+    }
+  }
+
+  async handleRestoreBackupFile(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target.result;
+        const parsed = JSON.parse(text);
+        
+        if (!confirm(`📂 Restore Database from File?\n\nFile: ${file.name}\nSize: ${(file.size / 1024).toFixed(1)} KB\n\nThis will load the database from this backup file. A rollback snapshot of your current state will be created automatically before loading.`)) {
+          return;
+        }
+
+        window.smartBioData.importBackup(parsed);
+
+        // If cloud is connected, optionally seed/sync
+        if (window.smartBioCloud && window.smartBioCloud.isConnected) {
+          try {
+            await window.smartBioCloud.seedCloudDatabase();
+          } catch (cloudErr) {
+            console.warn('Cloud sync after restore notice:', cloudErr);
+          }
+        }
+
+        window.smartBioAudio.playSuccessChime();
+        this.showToast(`✅ Database restored from ${file.name}!`, 'success');
+        this.refreshCurrentPortal();
+      } catch (err) {
+        console.error('Restore file error:', err);
+        alert('Invalid Backup File:\n' + err.message);
+        this.showToast('Failed to import backup file: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async handleSelectiveDataCleanup() {
     if (!this.authenticatedUser || this.authenticatedUser.role !== 'ADMIN') {
       window.smartBioAudio.playErrorBuzz();
-      alert('⛔ Administrative Authorization Required:\n\nOnly System Administrators can purge and normalize institutional records.');
+      alert('⛔ Administrative Authorization Required:\n\nOnly System Administrators can initiate test data cleanup.');
       this.showToast('Access Denied: Action requires ADMIN role.', 'error');
       return;
     }
 
-    const wantBackup = confirm('📥 Safety Backup Recommended:\n\nWould you like to download a complete JSON backup of your current database before cleaning?');
-    if (wantBackup) {
-      await this.exportFirestoreBackup();
-      await new Promise(r => setTimeout(r, 1200));
-    }
+    const confirmCleanup = confirm(
+      '🧹 Smart Test Data Cleanup (Reversible):\n\n' +
+      'This will remove past mock/dummy seed attendance records while PRESERVING:\n' +
+      '  ✓ All user-created courses\n' +
+      '  ✓ All user-created students and staff accounts\n' +
+      '  ✓ All active attendance scans & sessions you initiated\n\n' +
+      '🛡️ SAFETY GUARANTEE:\n' +
+      '• A reversible snapshot will be saved in local storage.\n' +
+      '• A full JSON backup file will download automatically.\n' +
+      '• You can 1-click revert at any time!\n\n' +
+      'Proceed with cleanup?'
+    );
 
-    if (!confirm('🧹 Proceed to Clean Test Records?\n\nThis will purge transient test attendance scans and test flags (both locally and in Cloud Firestore if online), while retaining and normalizing all authentic user accounts, courses, and departments with clean system unique IDs.')) {
-      return;
-    }
+    if (!confirmCleanup) return;
 
-    this.showToast('🧹 Purging test records & normalizing documents (Local & Cloud)...', 'info');
+    this.showToast('📦 Creating safety backup before cleanup...', 'info');
+    // 1. Download safety JSON backup
+    await this.exportFirestoreBackup();
+    await new Promise(r => setTimeout(r, 800));
 
-    // 1. Clean & Normalize Local Store
-    window.smartBioData.cleanLocalTestDataAndNormalizeUniqueIds();
+    // 2. Perform selective cleanup with automatic rollback snapshot
+    const result = window.smartBioData.cleanMockTestDataPreserveUserEntries();
 
-    // 2. Clean & Normalize Firestore Cloud if connected
+    // 3. Clean Cloud Firestore if connected
     let cloudCleaned = false;
     if (window.smartBioCloud && window.smartBioCloud.isConnected) {
       try {
@@ -1901,33 +2181,67 @@ class SmartBioApp {
       }
     }
 
-    // 3. Re-render active view instantly
+    // 4. Refresh views
+    this.refreshCurrentPortal();
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(
+      `✅ Mock test data purged! Retained ${result.preservedUsers} users, ${result.preservedCourses} courses, and ${result.preservedAttendance} live attendance records. (Snapshot available to revert)`,
+      'success'
+    );
+  }
+
+  refreshCurrentPortal() {
     if (this.currentView === 'ADMIN') this.renderAdminPortal();
     if (this.currentView === 'LECTURER') this.renderLecturerPortal();
     if (this.currentView === 'CLASS_REP') this.renderClassRepPortal();
     if (this.currentView === 'STUDENT') this.renderStudentPortal();
+  }
 
-    window.smartBioAudio.playSuccessChime();
-    this.showToast(
-      cloudCleaned 
-        ? '✅ Both Local Database and Cloud Firestore sanitized & normalized with unique IDs!' 
-        : '✅ Local Database sanitized & normalized with unique IDs (Local Mode)!',
-      'success'
-    );
+  refreshAllCourseUI(preferredCourseId = null) {
+    this.populateLectureCourseDropdown(preferredCourseId);
+    this.populateDefaulterCourseDropdown(preferredCourseId);
+    if (this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP')) {
+      this.populateStudentHistoryCourseDropdown(this.authenticatedUser.id);
+    }
+    this.refreshCurrentPortal();
+  }
+
+  async cleanFirestoreData() {
+    return this.handleSelectiveDataCleanup();
   }
 
   // 6. Scanner Terminal Logic
   bindScannerEvents() {
     const platen = document.getElementById('opticalPlaten');
     if (platen) {
-      platen.addEventListener('click', () => this.runTerminalScan('NORMAL'));
+      platen.addEventListener('click', () => {
+        let sid = null;
+        if (this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP')) {
+          sid = this.authenticatedUser.id;
+        } else if (this.activeLectureSession) {
+          const enrolled = window.smartBioData.getEnrolledStudents(this.activeLectureSession.courseId);
+          sid = enrolled.length > 0 ? enrolled[0].id : 4;
+        }
+        this.runTerminalScan('NORMAL', sid || 4);
+      });
     }
 
     // Hardware Simulation Action Buttons (Clearly labeled Defense Mode Simulation)
     document.querySelectorAll('.btn-sim-test').forEach(btn => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.simMode;
-        const studentId = Number(btn.dataset.studentId || 4);
+        let studentId = Number(btn.dataset.studentId || 0);
+        if (!studentId && mode !== 'NON_ENROLLED') {
+          if (this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP')) {
+            studentId = this.authenticatedUser.id;
+          } else if (this.activeLectureSession) {
+            const enrolled = window.smartBioData.getEnrolledStudents(this.activeLectureSession.courseId);
+            studentId = enrolled.length > 0 ? enrolled[0].id : 4;
+          } else {
+            studentId = 4;
+          }
+        }
         this.runTerminalScan(mode, studentId);
       });
     });
@@ -1942,7 +2256,7 @@ class SmartBioApp {
           return;
         }
 
-        const studentId = this.currentUserId || 4;
+        const studentId = this.currentUserId || (this.authenticatedUser ? this.authenticatedUser.id : 4);
         const user = window.smartBioData.getUserById(studentId);
         if (!user || !user.credentialId) {
           this.showToast('ℹ️ No device passkey enrolled yet. Please open Profile > "Enroll / Test Device Passkey" to register your fingerprint, or use the Optical Scanner below.', 'warning');
@@ -1977,14 +2291,14 @@ class SmartBioApp {
 
   renderScannerTerminal() {
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
-      const course = (window.smartBioData.load().courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'CSC 401' };
-      this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${this.activeLectureSession.venue}) — Simulation Mode`);
+      const course = (window.smartBioData.load().courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
+      this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${this.activeLectureSession.venue || 'Hall'}) — Optical Sensor Ready`);
     } else {
-      this.updateScannerHUD('SIMULATION READY', 'Optical Scanner Simulation Mode (Ready for student biometric test touch)...');
+      this.updateScannerHUD('SIMULATION READY', 'Optical Scanner Ready — Waiting for active lecture session...');
     }
   }
 
-  async runTerminalScan(mode = 'NORMAL', studentId = 4) {
+  async runTerminalScan(mode = 'NORMAL', studentId = null) {
     const activeSess = this.activeLectureSession;
     if (!activeSess || activeSess.status !== 'ACTIVE') {
       window.smartBioAudio.playErrorBuzz();
@@ -1993,7 +2307,17 @@ class SmartBioApp {
       return;
     }
 
-    const student = window.smartBioData.getUserById(studentId);
+    // Dynamically resolve student ID if not explicitly specified
+    if (!studentId && mode !== 'NON_ENROLLED') {
+      if (this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP')) {
+        studentId = this.authenticatedUser.id;
+      } else {
+        const enrolled = window.smartBioData.getEnrolledStudents(activeSess.courseId);
+        studentId = enrolled.length > 0 ? enrolled[0].id : 4;
+      }
+    }
+
+    const student = studentId ? window.smartBioData.getUserById(studentId) : null;
     if (!student && mode !== 'NON_ENROLLED') {
       this.updateScannerHUD('USER NOT FOUND', 'Matriculation record not found in university directory.');
       return;
@@ -2017,7 +2341,7 @@ class SmartBioApp {
     const currentCourseId = activeSess.courseId;
 
     const result = await window.smartBioBiometric.simulateOpticalScan({
-      studentId,
+      studentId: student ? student.id : 4,
       testMode: mode,
       sessionId: currentSessionId
     });
@@ -2120,7 +2444,7 @@ class SmartBioApp {
     }
   }
 
-  populateLectureCourseDropdown() {
+  populateLectureCourseDropdown(preferredCourseId = null) {
     const select = document.getElementById('lectureCourseSelect');
     if (!select) return;
 
@@ -2129,8 +2453,9 @@ class SmartBioApp {
     
     // Filter courses relevant to current lecturer or show all
     let relevantCourses = courses;
-    if (this.currentRole === 'LECTURER' && this.currentUserId) {
-      relevantCourses = courses.filter(c => c.lecturerId === this.currentUserId);
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+    if (isLecturer && this.currentUserId) {
+      relevantCourses = courses.filter(c => Number(c.lecturerId) === Number(this.currentUserId));
       if (relevantCourses.length === 0) relevantCourses = courses;
     }
 
@@ -2139,6 +2464,29 @@ class SmartBioApp {
       html += `<option value="${c.id}">${c.code} — ${c.title} (${c.units} Units)</option>`;
     });
 
+    select.innerHTML = html;
+    if (preferredCourseId && relevantCourses.some(c => Number(c.id) === Number(preferredCourseId))) {
+      select.value = String(preferredCourseId);
+    }
+  }
+
+  populateLoginRoleDropdown() {
+    const select = document.getElementById('loginRoleSelect');
+    if (!select) return;
+    const data = window.smartBioData.load();
+    const users = data.users || [];
+    const roles = [
+      { role: 'LECTURER', label: '👨‍🏫 Course Lecturer' },
+      { role: 'STUDENT', label: '🎓 Student' },
+      { role: 'CLASS_REP', label: '👥 Class Representative' },
+      { role: 'ADMIN', label: '👨‍💼 System Administrator' }
+    ];
+    let html = '';
+    roles.forEach(r => {
+      const match = users.find(u => u.role === r.role);
+      const name = match ? ` (${match.fullName})` : '';
+      html += `<option value="${r.role}">${r.label}${name}</option>`;
+    });
     select.innerHTML = html;
   }
 
@@ -2544,11 +2892,8 @@ class SmartBioApp {
       }
     }
 
-    this.populateLectureCourseDropdown();
-    if (this.currentView === 'STUDENT') this.renderStudentPortal();
-    if (this.currentView === 'CLASS_REP') this.renderClassRepPortal();
-    if (this.currentView === 'LECTURER') this.renderLecturerPortal();
-    if (this.currentView === 'ADMIN') this.renderAdminPortal();
+    this.refreshAllCourseUI(nextCourseId);
+    this.broadcastSync('COURSES_UPDATED', { preferredCourseId: nextCourseId });
 
     this.closeCreateCourseModal();
     window.smartBioAudio.playSuccessChime();
@@ -2630,8 +2975,8 @@ class SmartBioApp {
     }
 
     this.closeReassignCourseModal();
-    this.populateLectureCourseDropdown();
-    this.renderAdminPortal();
+    this.refreshAllCourseUI(courseId);
+    this.broadcastSync('COURSES_UPDATED', { preferredCourseId: courseId });
 
     window.smartBioAudio.playSuccessChime();
     this.showToast(`✓ Transferred ownership of ${oldCourse.code} to ${newLecturer.fullName}!`, 'success');
@@ -2734,8 +3079,8 @@ class SmartBioApp {
     });
 
     window.smartBioData.save(data);
-    this.populateLectureCourseDropdown();
-    this.renderAdminPortal();
+    this.refreshAllCourseUI();
+    this.broadcastSync('COURSES_UPDATED');
     this.showToast(`Deleted course ${course.code}`, 'info');
   }
 

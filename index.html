@@ -83,7 +83,7 @@
       <div class="view-header">
         <div class="view-title-group">
           <h2>Lecturer Dashboard &amp; Live Session Radar</h2>
-          <p>Welcome back, <strong id="lecturerWelcomeName" class="text-primary">Dr. Olawale Adeyemi</strong> • <span id="lecturerDeptName">Dept of Computer Science &amp; Software Engineering</span></p>
+          <p>Welcome back, <strong id="lecturerWelcomeName" class="text-primary">Lecturer</strong> • <span id="lecturerDeptName">Faculty of Science</span></p>
         </div>
         <div class="view-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button class="btn btn-primary" onclick="smartBioApp.openCreateCourseModal()">
@@ -97,9 +97,9 @@
         <div class="radar-pulse-ring">
           <div class="radar-dot"></div>
           <div>
-            <h3 style="font-size: 1.1rem; font-weight: 800;" id="activeSessionTitle">Advanced Software Architecture &amp; WebAuthn</h3>
+            <h3 style="font-size: 1.1rem; font-weight: 800;" id="activeSessionTitle">Active Lecture Session</h3>
             <p style="font-size: 0.82rem; color: var(--text-muted);">
-              Venue: <strong id="activeSessionVenue">ICT Hall A</strong> • Course: <strong id="activeSessionCourseCode" class="text-primary font-mono">CSC 401</strong> • Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span>
+              Venue: <strong id="activeSessionVenue">--</strong> • Course: <strong id="activeSessionCourseCode" class="text-primary font-mono">--</strong> • Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span>
             </p>
           </div>
         </div>
@@ -116,17 +116,16 @@
           <div>
             <label class="form-label">Course Code</label>
             <select class="form-control" id="lectureCourseSelect">
-              <option value="1">CSC 401 — Advanced Software Engineering</option>
-              <option value="2">CSC 405 — Biometrics &amp; Cyber-Physical Systems</option>
+              <!-- Populated dynamically via smartBioApp.populateLectureCourseDropdown() -->
             </select>
           </div>
           <div>
             <label class="form-label">Lecture Topic</label>
-            <input type="text" class="form-control" id="lectureTopicInput" value="Biometric Minutiae &amp; Cryptographic Hashes" placeholder="e.g. Design Patterns" autocapitalize="words" data-autocase="title">
+            <input type="text" class="form-control" id="lectureTopicInput" placeholder="e.g. Advanced Software Architecture" autocapitalize="words" data-autocase="title">
           </div>
           <div>
             <label class="form-label">Lecture Hall / Venue</label>
-            <input type="text" class="form-control" id="lectureVenueInput" value="ICT Hall A" placeholder="e.g. Lab 2" autocapitalize="words" data-autocase="title">
+            <input type="text" class="form-control" id="lectureVenueInput" placeholder="e.g. ICT Hall A" autocapitalize="words" data-autocase="title">
           </div>
           <button class="btn btn-primary" id="btnStartLectureSession" style="width: 100%;">
             Start Session
@@ -224,7 +223,7 @@
       <div class="view-header">
         <div class="view-title-group">
           <h2>Class Representative &amp; Session Proctoring Portal</h2>
-          <p>Logged in as: <strong id="classRepWelcomeName" class="text-primary">Chukwudi Eze (Class Rep)</strong> • <span id="classRepCohortBadge">Computer Science 400L</span></p>
+          <p>Logged in as: <strong id="classRepWelcomeName" class="text-primary">Class Representative</strong> • <span id="classRepCohortBadge">Academic Cohort</span></p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button class="btn btn-secondary" onclick="smartBioApp.openCreateCourseModal()" style="border-color: var(--primary); color: var(--primary);">
@@ -249,11 +248,11 @@
           <div>
             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 2px;">
               <span class="badge badge-eligible font-bold">🟢 CLASS IN SESSION</span>
-              <strong id="repActiveCourseCode" class="text-primary font-mono font-bold">CSC 401</strong>
+              <strong id="repActiveCourseCode" class="text-primary font-mono font-bold">--</strong>
             </div>
-            <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="repActiveTopic">Advanced Software Architecture</h3>
+            <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="repActiveTopic">Active Lecture Topic</h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">
-              Lecturer: <strong id="repActiveLecturer">Dr. Olawale Adeyemi</strong> • Venue: <strong id="repActiveVenue">ICT Hall A</strong>
+              Lecturer: <strong id="repActiveLecturer">--</strong> • Venue: <strong id="repActiveVenue">--</strong>
             </p>
           </div>
         </div>
@@ -270,8 +269,8 @@
           <div class="stat-icon-wrapper stat-icon-primary">👥</div>
           <div class="stat-content">
             <h4>Total Course Enrolled</h4>
-            <div class="stat-value" id="repStatEnrolled">5</div>
-            <div class="stat-meta" id="repStatMetaCourse">CSC 401 Cohort</div>
+            <div class="stat-value" id="repStatEnrolled">0</div>
+            <div class="stat-meta" id="repStatMetaCourse">Enrolled Cohort</div>
           </div>
         </div>
         <div class="stat-card">
@@ -348,7 +347,7 @@
       <div class="view-header">
         <div class="view-title-group">
           <h2>Student Attendance &amp; NUC Clearance Portal</h2>
-          <p>Logged in as: <strong id="studentWelcomeName" class="text-primary">Benedict Uchechukwu</strong> • Matric: <span class="badge badge-eligible font-mono" id="studentMatricBadge">GWU/CSC/22/001</span> • <span id="studentDeptBadge" class="text-muted">Computer Science 400L</span></p>
+          <p>Logged in as: <strong id="studentWelcomeName" class="text-primary">Student</strong> • Matric: <span class="badge badge-eligible font-mono" id="studentMatricBadge">--</span> • <span id="studentDeptBadge" class="text-muted">--</span></p>
         </div>
         <button class="btn btn-primary" id="btnOpenDocketModal">
           📜 Generate Exam Clearance Docket
@@ -362,11 +361,11 @@
           <div>
             <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 2px;">
               <span class="badge badge-eligible font-bold">🟢 CLASS IN SESSION</span>
-              <strong id="studentActiveCourseCode" class="text-primary font-mono font-bold">CSC 401</strong>
+              <strong id="studentActiveCourseCode" class="text-primary font-mono font-bold">--</strong>
             </div>
-            <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="studentActiveTopic">Advanced Software Architecture</h3>
+            <h3 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 2px;" id="studentActiveTopic">Active Lecture Topic</h3>
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0;">
-              Lecturer: <strong id="studentActiveLecturer">Dr. Olawale Adeyemi</strong> • Venue: <strong id="studentActiveVenue">ICT Hall A</strong>
+              Lecturer: <strong id="studentActiveLecturer">--</strong> • Venue: <strong id="studentActiveVenue">--</strong>
             </p>
           </div>
         </div>
@@ -424,18 +423,27 @@
           <h2>System Administration &amp; NDPA 2023 Audit Console</h2>
           <p>Institutional Overview: Global Wealth University • Academic Session <span id="adminActiveSessionLabel" class="text-primary font-bold">2025/2026</span> • <span id="adminActiveSemesterLabel">Second Semester</span></p>
         </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
           <button class="btn btn-success btn-sm" id="btnAdminRunTests" onclick="smartBioApp.runAutomatedVerificationSuite()">
             🧪 Run Verification Suite
           </button>
           <button class="btn btn-primary btn-sm" id="btnAdminSeedCloud" onclick="smartBioApp.seedCloudFirestore()">
             ☁️ Seed Firestore Cloud
           </button>
-          <button class="btn btn-secondary btn-sm" id="btnAdminExportFirestore" onclick="smartBioApp.exportFirestoreBackup()">
-            📥 Export Firestore Backup (JSON)
+          <button class="btn btn-secondary btn-sm" id="btnAdminCreateSnapshot" onclick="smartBioApp.handleCreateBackupSnapshot()" title="Create an instant rollback snapshot">
+            📦 Create Backup Snapshot
           </button>
-          <button class="btn btn-warning btn-sm" id="btnAdminCleanFirestore" onclick="smartBioApp.cleanFirestoreData()">
-            🧹 Clean Firestore Test Records &amp; Normalize IDs
+          <button class="btn btn-secondary btn-sm" id="btnAdminRevertSnapshot" onclick="smartBioApp.handleRevertSnapshot()" title="Rollback to previous snapshot">
+            🔄 Revert to Snapshot
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnAdminExportFirestore" onclick="smartBioApp.exportFirestoreBackup()">
+            📥 Export Backup (JSON)
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnAdminRestoreFile" onclick="smartBioApp.triggerRestoreFileInput()">
+            📂 Restore from Backup (JSON)
+          </button>
+          <button class="btn btn-warning btn-sm" id="btnAdminCleanFirestore" onclick="smartBioApp.handleSelectiveDataCleanup()">
+            🧹 Clean Test Records (Preserve User Data)
           </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminExportSQL">
             💾 Export SQL Dump
@@ -443,6 +451,7 @@
           <button class="btn btn-danger btn-sm" id="btnAdminResetDB">
             🔄 Reset Local Seeds
           </button>
+          <input type="file" id="inputRestoreBackupFile" accept=".json" onchange="smartBioApp.handleRestoreBackupFile(event)" style="display:none">
         </div>
       </div>
 
@@ -915,17 +924,14 @@
             <div class="form-group">
               <label class="form-label" for="loginRoleSelect">Account Type / Persona</label>
               <select class="form-control font-bold" id="loginRoleSelect" onchange="smartBioApp.fillDemoAuth(this.value)" required>
-                <option value="LECTURER">👨‍🏫 Course Lecturer (Dr. Olawale Adeyemi)</option>
-                <option value="STUDENT">🎓 Student (Benedict Uchechukwu)</option>
-                <option value="CLASS_REP">👥 Class Representative (Chukwudi Eze)</option>
-                <option value="ADMIN">👨‍💼 System Administrator (Dr. Kola Balogun)</option>
+                <!-- Dynamically populated via smartBioApp.populateLoginRoleDropdown() -->
               </select>
             </div>
 
             <!-- Email / Matric Input -->
             <div class="form-group">
               <label class="form-label" for="loginEmailInput">Institutional Email / Identifier</label>
-              <input type="text" class="form-control" id="loginEmailInput" value="o.adeyemi@smartbio.edu.ng" placeholder="e.g. b.uche@student.gwu.edu or GWU/CSC/22/001" required>
+              <input type="text" class="form-control" id="loginEmailInput" value="" placeholder="e.g. b.uche@student.gwu.edu or GWU/CSC/22/001" required>
             </div>
 
             <!-- Password Input with Show/Hide -->
@@ -935,7 +941,7 @@
                 <a href="javascript:void(0)" onclick="smartBioApp.switchAuthView('RESET')" style="font-size: 0.76rem; color: var(--primary); text-decoration: none;">Forgot Password?</a>
               </div>
               <div class="password-input-wrapper">
-                <input type="password" class="form-control font-mono" id="loginPasswordInput" value="password123" placeholder="Enter your password" required>
+                <input type="password" class="form-control font-mono" id="loginPasswordInput" value="" placeholder="Enter your password" required>
                 <button type="button" class="btn-toggle-pwd" onclick="smartBioApp.togglePasswordVisibility('loginPasswordInput', this)" title="Show/Hide Password">👁️</button>
               </div>
             </div>
@@ -1151,12 +1157,12 @@
       <div class="modal-body">
         <!-- Profile Identity Header -->
         <div class="profile-card-header">
-          <div class="profile-avatar-large" id="profileModalAvatar">👨‍🏫</div>
+          <div class="profile-avatar-large" id="profileModalAvatar">👤</div>
           <div class="profile-info-block">
-            <h3 id="profileModalFullName">Dr. Olawale Adeyemi</h3>
+            <h3 id="profileModalFullName">--</h3>
             <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-              <span class="badge badge-eligible font-bold" id="profileModalRoleBadge">LECTURER</span>
-              <span class="text-muted font-mono" id="profileModalIdentifier" style="font-size: 0.8rem;">STF/CSC/042</span>
+              <span class="badge badge-eligible font-bold" id="profileModalRoleBadge">--</span>
+              <span class="text-muted font-mono" id="profileModalIdentifier" style="font-size: 0.8rem;">--</span>
             </div>
           </div>
         </div>
@@ -1165,15 +1171,15 @@
         <div class="profile-grid-2col">
           <div class="profile-field-box">
             <div class="profile-field-label">Institutional Email</div>
-            <div class="profile-field-val" id="profileModalEmail">o.adeyemi@smartbio.edu.ng</div>
+            <div class="profile-field-val" id="profileModalEmail">--</div>
           </div>
           <div class="profile-field-box">
             <div class="profile-field-label">Academic Department</div>
-            <div class="profile-field-val" id="profileModalDepartment">Computer Science &amp; Software Eng.</div>
+            <div class="profile-field-val" id="profileModalDepartment">--</div>
           </div>
           <div class="profile-field-box">
             <div class="profile-field-label">Cohort / Academic Level</div>
-            <div class="profile-field-val" id="profileModalLevel">Faculty Staff / Board</div>
+            <div class="profile-field-val" id="profileModalLevel">--</div>
           </div>
           <div class="profile-field-box">
             <div class="profile-field-label">Account Security Level</div>
@@ -1191,7 +1197,7 @@
             <span class="badge badge-eligible" id="profileModalBiometricStatusBadge">ENROLLED</span>
           </div>
           <div class="biometric-hash-display" id="profileModalBiometricHash">
-            SHA256:8f4c2e91b637dae15091726a84d29f03
+            --
           </div>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn btn-primary btn-sm" id="btnProfileEnrollWebAuthn" onclick="smartBioApp.handleEnrollBiometrics('WEBAUTHN')">
@@ -1272,8 +1278,7 @@
             <div class="form-group">
               <label class="form-label" for="newCourseLecturer">Assigned Course Lecturer</label>
               <select class="form-control" id="newCourseLecturer" required>
-                <option value="2">Dr. Olawale Adeyemi (STF/CSC/042)</option>
-                <option value="3">Prof. Ngozi Okoro (STF/CSC/018)</option>
+                <!-- Populated dynamically via smartBioApp.openCreateCourseModal() -->
               </select>
             </div>
             <div class="form-group">
@@ -1313,11 +1318,11 @@
           <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
               <span class="text-muted">Target Course:</span>
-              <strong id="reassignCourseCodeTitle" class="text-primary">CSC 401 — Advanced Software Engineering</strong>
+              <strong id="reassignCourseCodeTitle" class="text-primary">--</strong>
             </div>
             <div style="display: flex; justify-content: space-between;">
               <span class="text-muted">Current Lecturer:</span>
-              <span id="reassignCurrentLecturerName" class="font-bold">Dr. Olawale Adeyemi</span>
+              <span id="reassignCurrentLecturerName" class="font-bold">--</span>
             </div>
           </div>
 

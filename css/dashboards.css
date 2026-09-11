@@ -350,6 +350,7 @@
 .fill-eligible   { background: var(--success); box-shadow: 0 0 8px var(--success); }
 .fill-at-risk    { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
 .fill-ineligible { background: var(--danger);  box-shadow: 0 0 8px var(--danger); }
+.fill-pending    { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
 
 /* ==========================================================================
    EXAMINATION CLEARANCE DOCKET (Screen View)

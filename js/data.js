@@ -272,11 +272,12 @@ class DataStore {
   getCourses() { return this.data.courses; }
   getSessions() { return this.data.lectureSessions; }
   getAttendance() { return this.data.attendanceRecords; }
+  getAttendanceRecords() { return this.data.attendanceRecords; }
   getFlagged() { return this.data.flaggedExceptions; }
   getAuditLogs() { return this.data.auditLogs; }
 
   getUserById(id) {
-    return this.data.users.find(u => u.id === Number(id));
+    return this.data.users.find(u => String(u.id) === String(id) || u.id === Number(id));
   }
 
   getUserByIdentifier(identifier) {
@@ -284,8 +285,47 @@ class DataStore {
   }
 
   getCourseById(id) {
-    return this.data.courses.find(c => c.id === Number(id));
+    return this.data.courses.find(c => String(c.id) === String(id) || c.id === Number(id));
   }
+
+  getCoursesByLecturer(lecturerId) {
+    return (this.data.courses || []).filter(c => String(c.lecturerId) === String(lecturerId) || c.lecturerId === Number(lecturerId));
+  }
+
+  getEnrolledStudents(courseId) {
+    const regStudentIds = (this.data.courseRegistrations || [])
+      .filter(r => String(r.courseId) === String(courseId) || r.courseId === Number(courseId))
+      .map(r => r.studentId);
+    return (this.data.users || []).filter(u => regStudentIds.some(sId => String(sId) === String(u.id)));
+  }
+
+  getLectureSessionById(id) {
+    return (this.data.lectureSessions || []).find(s => String(s.id) === String(id) || s.id === Number(id));
+  }
+
+  addLectureSession(session) {
+    if (!this.data.lectureSessions) this.data.lectureSessions = [];
+    const exists = this.data.lectureSessions.find(s => String(s.id) === String(session.id));
+    if (exists) {
+      Object.assign(exists, session);
+    } else {
+      this.data.lectureSessions.push(session);
+    }
+    this.save();
+    return session;
+  }
+
+  updateLectureSession(sessionId, updates) {
+    if (!this.data.lectureSessions) this.data.lectureSessions = [];
+    const sess = this.data.lectureSessions.find(s => String(s.id) === String(sessionId));
+    if (sess) {
+      Object.assign(sess, updates);
+      this.save();
+      return sess;
+    }
+    return null;
+  }
+
 
   addAttendance(record) {
     // Prevent duplicate attendance for the same session and student
@@ -358,6 +398,8 @@ class DataStore {
   }
 
   addAuditLog(log) {
+    if (!this.data) this.data = {};
+    if (!Array.isArray(this.data.auditLogs)) this.data.auditLogs = [];
     log.id = Date.now();
     if (!log.actorId) log.actorId = null;
     this.data.auditLogs.unshift(log);
@@ -436,6 +478,172 @@ class DataStore {
     ).join(',\n') + ';\n\n';
 
     return sql;
+  }
+
+  // ── Snapshot & Reversible Backup Management ──────────────────────────────
+  createSnapshot(label = 'Manual Snapshot') {
+    const snapshot = {
+      label,
+      createdAt: new Date().toISOString(),
+      data: JSON.parse(JSON.stringify(this.data)),
+      metadata: {
+        totalUsers: (this.data.users || []).length,
+        totalCourses: (this.data.courses || []).length,
+        totalSessions: (this.data.lectureSessions || []).length,
+        totalAttendance: (this.data.attendanceRecords || []).length
+      }
+    };
+    try {
+      localStorage.setItem('smartbio_backup_snapshot', JSON.stringify(snapshot));
+    } catch (e) {
+      console.warn('Could not write snapshot to localStorage', e);
+    }
+    this.addAuditLog({
+      actorId: null,
+      actor: 'Administrator (System)',
+      action: 'SNAPSHOT_BACKUP_CREATED',
+      details: `Created reversible snapshot [${label}]: ${snapshot.metadata.totalUsers} users, ${snapshot.metadata.totalCourses} courses, ${snapshot.metadata.totalAttendance} attendance records.`,
+      time: new Date().toLocaleString()
+    });
+    return snapshot;
+  }
+
+  getSnapshotMetadata() {
+    try {
+      const snapStr = localStorage.getItem('smartbio_backup_snapshot');
+      if (!snapStr) return null;
+      const parsed = JSON.parse(snapStr);
+      return {
+        label: parsed.label || 'Backup Snapshot',
+        createdAt: parsed.createdAt,
+        metadata: parsed.metadata || {}
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  hasSnapshot() {
+    try {
+      return !!localStorage.getItem('smartbio_backup_snapshot');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  revertToSnapshot() {
+    const snapStr = localStorage.getItem('smartbio_backup_snapshot');
+    if (!snapStr) {
+      throw new Error('No backup snapshot found in local storage.');
+    }
+    const parsed = JSON.parse(snapStr);
+    if (!parsed || !parsed.data) {
+      throw new Error('Corrupted or invalid snapshot format.');
+    }
+    this.data = JSON.parse(JSON.stringify(parsed.data));
+    this.save();
+    this.addAuditLog({
+      actorId: null,
+      actor: 'Administrator (System)',
+      action: 'SNAPSHOT_RESTORED',
+      details: `Reverted database state to snapshot created at ${new Date(parsed.createdAt).toLocaleString()}.`,
+      time: new Date().toLocaleString()
+    });
+    return this.data;
+  }
+
+  importBackup(backupData) {
+    let parsed = backupData;
+    if (typeof backupData === 'string') {
+      parsed = JSON.parse(backupData);
+    }
+    // Support envelope with { data: ... }
+    if (parsed && parsed.data && typeof parsed.data === 'object') {
+      parsed = parsed.data;
+    }
+    if (!parsed || !Array.isArray(parsed.users) || !Array.isArray(parsed.courses)) {
+      throw new Error('Invalid backup file: Missing required users or courses array.');
+    }
+    // Auto-create snapshot of current state before overwriting
+    this.createSnapshot('Pre-Import Automatic Backup');
+    this.data = JSON.parse(JSON.stringify(parsed));
+    if (!Array.isArray(this.data.auditLogs)) this.data.auditLogs = [];
+    if (!Array.isArray(this.data.attendanceRecords)) this.data.attendanceRecords = [];
+    if (!Array.isArray(this.data.flaggedExceptions)) this.data.flaggedExceptions = [];
+    if (!Array.isArray(this.data.lectureSessions)) this.data.lectureSessions = [];
+    if (!Array.isArray(this.data.departments)) this.data.departments = [];
+    if (!Array.isArray(this.data.courseRegistrations)) this.data.courseRegistrations = [];
+    this.save();
+    this.addAuditLog({
+      actorId: null,
+      actor: 'Administrator (System)',
+      action: 'DATABASE_RESTORE_FILE',
+      details: `Imported full database from backup file: ${this.data.users.length} users, ${this.data.courses.length} courses, ${(this.data.attendanceRecords || []).length} attendance records.`,
+      time: new Date().toLocaleString()
+    });
+    return this.data;
+  }
+
+  cleanMockTestDataPreserveUserEntries() {
+    // 1. Automatically create a rollback snapshot first!
+    this.createSnapshot('Pre-Clean Automatic Backup');
+
+    // 2. Identify default seed IDs
+    const seedSessionIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const seedAttendanceIds = Array.from({ length: 30 }, (_, i) => i + 1);
+
+    // 3. Filter attendance: preserve records that belong to user-created sessions or user-created record IDs
+    const userAttendance = (this.data.attendanceRecords || []).filter(a => {
+      const isSeedId = seedAttendanceIds.includes(Number(a.id));
+      const isSeedSession = seedSessionIds.includes(Number(a.sessionId));
+      // Keep if it's NOT a seed record, or if it was added for a user-created session
+      return !isSeedId || !isSeedSession;
+    });
+
+    // 4. Filter flagged exceptions: preserve any user-generated flags
+    const userFlagged = (this.data.flaggedExceptions || []).filter(f => Number(f.id) > 3);
+
+    // 5. Normalize system unique IDs across all users, courses, departments
+    this.data.users = (this.data.users || []).map(u => ({
+      ...u,
+      systemUid: u.systemUid || `GWU-USR-${String(u.id).padStart(4, '0')}`,
+      updatedAt: new Date().toISOString()
+    }));
+    this.data.courses = (this.data.courses || []).map(c => ({
+      ...c,
+      systemUid: c.systemUid || `GWU-CRS-${String(c.code).replace(/\s+/g, '')}`,
+      updatedAt: new Date().toISOString()
+    }));
+    this.data.departments = (this.data.departments || []).map(d => ({
+      ...d,
+      systemUid: d.systemUid || `GWU-DEPT-${d.code}`,
+      updatedAt: new Date().toISOString()
+    }));
+
+    // Retain filtered attendance and flags
+    this.data.attendanceRecords = userAttendance;
+    this.data.flaggedExceptions = userFlagged;
+
+    // Clear active transient lecture session
+    try {
+      localStorage.removeItem('smartbio_active_session');
+    } catch (e) {}
+
+    this.addAuditLog({
+      actorId: null,
+      actor: 'Administrator (System)',
+      action: 'DATA_CLEANSE_PRESERVED_USER_ENTRIES',
+      details: `Cleaned mock test attendance. Preserved ${userAttendance.length} user/live attendance records, ${(this.data.courses || []).length} courses, and ${(this.data.users || []).length} users. Rollback snapshot saved.`,
+      time: new Date().toLocaleString()
+    });
+
+    this.save();
+    return {
+      preservedUsers: this.data.users.length,
+      preservedCourses: this.data.courses.length,
+      preservedAttendance: userAttendance.length,
+      snapshotAvailable: true
+    };
   }
 }
 

@@ -240,18 +240,17 @@ class CloudSyncEngine {
       // 3. Real-time Active Lecture Session Broadcast
       this.db.collection('lecture_sessions').doc('active_session')
         .onSnapshot((doc) => {
-          if (doc.exists) {
+          if (doc.exists && doc.data().status === 'ACTIVE') {
             const sessionData = doc.data();
             window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: sessionData }));
           } else {
-            // Only broadcast end if no active session is persisted in local storage
-            let localSess = null;
+            // When document is deleted or status changed to CONCLUDED, unconditionally invalidate active session
             try {
-              localSess = localStorage.getItem('smartbio_active_session');
+              localStorage.removeItem('smartbio_active_session');
             } catch (e) {}
-            if (!localSess) {
-              window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: null, isExplicitEnd: true }));
-            }
+            window.dispatchEvent(new CustomEvent('smartbio:session_update', { 
+              detail: { session: null, status: 'CONCLUDED', isExplicitEnd: true } 
+            }));
           }
         }, (error) => {
           console.warn('Firestore active session listener notice:', error.message);
@@ -267,6 +266,7 @@ class CloudSyncEngine {
       try {
         await this.db.collection('lecture_sessions').doc('active_session').set({
           ...session,
+          status: 'ACTIVE',
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
       } catch (e) {
@@ -276,10 +276,30 @@ class CloudSyncEngine {
   }
 
   // End Active Lecture Session in Cloud
-  async endActiveSessionCloud() {
+  async endActiveSessionCloud(session = null) {
     if (this.isConnected && this.db) {
       try {
-        await this.db.collection('lecture_sessions').doc('active_session').delete();
+        // 1. Mark active_session document as CONCLUDED so snapshot listeners react immediately
+        await this.db.collection('lecture_sessions').doc('active_session').set({
+          status: 'CONCLUDED',
+          endedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // 2. Archive to permanent sessions collection if session object provided
+        if (session && session.id) {
+          await this.db.collection('lecture_sessions').doc(String(session.id)).set({
+            ...session,
+            status: 'CONCLUDED',
+            endedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+
+        // 3. Clean up active_session pointer
+        try {
+          await this.db.collection('lecture_sessions').doc('active_session').delete();
+        } catch (delErr) {
+          // If delete permissions fail, status is already CONCLUDED
+        }
       } catch (e) {
         console.warn('Active session end skipped:', e.message);
       }

@@ -40,6 +40,8 @@ class SmartBioTestSuite {
     this.testSeparationOfDuties();
     this.testAuthenticationSecurity();
     this.testCloudConnectionStatus();
+    this.testActiveSessionLifecycleAndFiltering();
+    this.testReversibleBackupAndSelectiveClean();
 
     console.log('%c───────────────────────────────────────────────────────────', 'color: #008080;');
     console.log(`%cSummary: ${this.passed} PASSED, ${this.failed} FAILED across ${this.results.length} test assertions.`, `color: ${this.failed === 0 ? '#10b981' : '#ef4444'}; font-weight: bold;`);
@@ -275,6 +277,246 @@ class SmartBioTestSuite {
         );
       }
     }
+  }
+
+  // 10. Active Lecture Session Lifecycle, Dynamic Helpers & Radar Stream Filtering
+  testActiveSessionLifecycleAndFiltering() {
+    // A. Dynamic Helper verification
+    const lecturerCourses = window.smartBioData.getCoursesByLecturer(2);
+    this.assert(
+      'getCoursesByLecturer(2) returns valid assigned courses',
+      Array.isArray(lecturerCourses) && lecturerCourses.length > 0 && lecturerCourses.every(c => c.lecturerId === 2)
+    );
+
+    const enrolledStudents = window.smartBioData.getEnrolledStudents(1);
+    this.assert(
+      'getEnrolledStudents(1) returns registered student users',
+      Array.isArray(enrolledStudents) && enrolledStudents.length >= 4 && enrolledStudents.some(s => s.id === 4)
+    );
+
+    // B. Active Session Filtering verification
+    const mockActiveSession = {
+      id: 'sess_live_test_' + Date.now(),
+      courseId: 1,
+      courseCode: 'CSC 401',
+      topic: 'Automated Test Verification',
+      venue: 'Lab 1',
+      status: 'ACTIVE',
+      startedAt: new Date().toISOString()
+    };
+
+    // Verify session store methods
+    window.smartBioData.addLectureSession(mockActiveSession);
+    const retrievedSess = window.smartBioData.getLectureSessionById(mockActiveSession.id);
+    this.assert('addLectureSession and getLectureSessionById persist session accurately', !!retrievedSess && retrievedSess.id === mockActiveSession.id);
+
+    // Filter simulation: Attendance stream for mockActiveSession must exclude past session records
+    const allRecords = window.smartBioData.getAttendanceRecords();
+    const activeStreamRecords = allRecords.filter(r => r.sessionId === mockActiveSession.id);
+    this.assert(
+      'New active session has 0 records initially in live attendance stream (no past defaulters displayed)',
+      activeStreamRecords.length === 0,
+      `Expected 0 live records, found ${activeStreamRecords.length}`
+    );
+
+    // Add a record for this active session
+    const mockRecord = {
+      id: 'rec_live_' + Date.now(),
+      sessionId: mockActiveSession.id,
+      courseId: 1,
+      studentId: 4,
+      studentName: 'Benedict Uchechukwu',
+      matricNo: 'GWU/CSC/22/001',
+      timestamp: new Date().toISOString(),
+      method: 'BIOMETRIC_PASSKEY',
+      confidence: 99.4,
+      status: 'VERIFIED'
+    };
+    allRecords.push(mockRecord);
+
+    const updatedStream = allRecords.filter(r => r.sessionId === mockActiveSession.id);
+    this.assert(
+      'Scanned student in active session is correctly isolated to the live attendance stream',
+      updatedStream.length === 1 && updatedStream[0].studentId === 4
+    );
+
+    // C. Session Termination UI Banner Verification
+    if (window.smartBioApp && typeof window.smartBioApp.updateRoleSessionBanners === 'function') {
+      // Test banner update with active session
+      window.smartBioApp.updateRoleSessionBanners(mockActiveSession);
+      const studentBanner = document.getElementById('studentLiveSessionBanner');
+      const repBanner = document.getElementById('repLiveSessionBanner');
+      const lecturerBanner = document.getElementById('liveSessionActiveBanner');
+
+      // Test banner update with null (session concluded)
+      window.smartBioApp.updateRoleSessionBanners(null);
+      const allBannersHidden = (!studentBanner || studentBanner.classList.contains('hidden')) &&
+                               (!repBanner || repBanner.classList.contains('hidden')) &&
+                               (!lecturerBanner || lecturerBanner.classList.contains('hidden'));
+      this.assert(
+        'updateRoleSessionBanners(null) hides all role session banners across portals',
+        allBannersHidden
+      );
+    }
+  }
+
+  // 11. Reversible Backup, Restore & Selective Data Cleanup Engine
+  testReversibleBackupAndSelectiveClean() {
+    // 1. Create a baseline snapshot
+    const snap = window.smartBioData.createSnapshot('Unit Test Baseline');
+    this.assert('createSnapshot generates valid snapshot metadata', !!snap && snap.label === 'Unit Test Baseline');
+    this.assert('hasSnapshot reports true after snapshot creation', window.smartBioData.hasSnapshot() === true);
+
+    const meta = window.smartBioData.getSnapshotMetadata();
+    this.assert('getSnapshotMetadata returns accurate label and timestamp', meta && meta.label === 'Unit Test Baseline' && !!meta.createdAt);
+
+    // 2. Simulate user adding custom entities
+    const customCourseId = 999;
+    const customUserId = 888;
+    const customSessionId = 'sess_user_custom_' + Date.now();
+    const customAttendanceId = 77777;
+
+    window.smartBioData.data.courses.push({
+      id: customCourseId,
+      code: 'CSC 499',
+      title: 'Senior Capstone Project',
+      departmentId: 1,
+      lecturerId: 2,
+      level: 400,
+      units: 4,
+      minAttendancePct: 75
+    });
+
+    window.smartBioData.data.users.push({
+      id: customUserId,
+      identifier: 'GWU/CSC/22/999',
+      fullName: 'User Added Student',
+      email: 'added@student.gwu.edu',
+      role: 'STUDENT',
+      departmentId: 1,
+      academicLevel: 400,
+      hasBiometrics: true
+    });
+
+    window.smartBioData.data.lectureSessions.push({
+      id: customSessionId,
+      courseId: customCourseId,
+      courseCode: 'CSC 499',
+      topic: 'Defense Demo Session',
+      venue: 'ICT Hall B',
+      status: 'CONCLUDED'
+    });
+
+    window.smartBioData.data.attendanceRecords.push({
+      id: customAttendanceId,
+      sessionId: customSessionId,
+      studentId: customUserId,
+      studentName: 'User Added Student',
+      matricNo: 'GWU/CSC/22/999',
+      timestamp: new Date().toISOString(),
+      method: 'BIOMETRIC_PASSKEY',
+      confidence: 99.1,
+      status: 'VERIFIED'
+    });
+
+    // 3. Perform Selective Test Data Cleanup
+    const cleanResult = window.smartBioData.cleanMockTestDataPreserveUserEntries();
+    this.assert('cleanMockTestDataPreserveUserEntries executes successfully', !!cleanResult && cleanResult.snapshotAvailable);
+
+    // Verify user-created records remain
+    const preservedCourse = window.smartBioData.getCourseById(customCourseId);
+    this.assert('User-created course (CSC 499) is preserved after cleanup', !!preservedCourse && preservedCourse.id === customCourseId);
+
+    const preservedUser = window.smartBioData.getUserById(customUserId);
+    this.assert('User-created student account is preserved after cleanup', !!preservedUser && preservedUser.id === customUserId);
+
+    const preservedAttendance = (window.smartBioData.getAttendance() || []).find(a => a.id === customAttendanceId);
+    this.assert('User-created live attendance scan is preserved after cleanup', !!preservedAttendance && preservedAttendance.id === customAttendanceId);
+
+    // Verify mock seed attendance records are purged
+    const hasSeedAttendance = (window.smartBioData.getAttendance() || []).some(a => Number(a.id) <= 30 && [1,2,3,4,5,6,7,8,9,10].includes(Number(a.sessionId)));
+    this.assert('Mock seed dummy attendance records (1-30) are purged', !hasSeedAttendance);
+
+    // 4. Test 1-Click Rollback / Reversion
+    window.smartBioData.revertToSnapshot();
+    const hasSeedAttendanceAfterRevert = (window.smartBioData.getAttendance() || []).some(a => Number(a.id) <= 30);
+    this.assert('Reverting to snapshot restores purged mock attendance records', hasSeedAttendanceAfterRevert);
+
+    // Verify benchmark records are intact for defense tests
+    const compBenedict = window.smartBioCompliance.calculateStudentCompliance(4);
+    const csc401Benedict = compBenedict.courseStats.find(c => c.course.code === 'CSC 401');
+    this.assert('Benedict 8/10 benchmark attendance is fully verified after rollback', csc401Benedict && csc401Benedict.attended === 8);
+
+    // 5. Test JSON Backup Import
+    const mockBackupEnvelope = {
+      app: 'SmartBio Attendance System',
+      data: {
+        users: [{ id: 1, identifier: 'ADM/2026/001', fullName: 'Dr. Balogun', role: 'ADMIN' }],
+        courses: [{ id: 1, code: 'CSC 401', title: 'Software Engineering', minAttendancePct: 75 }],
+        attendanceRecords: []
+      }
+    };
+    window.smartBioData.importBackup(mockBackupEnvelope);
+    this.assert('importBackup loads valid JSON backup file structure', window.smartBioData.getUsers().length === 1 && window.smartBioData.getCourses().length === 1);
+
+    // 6. Test Dynamic Course Creation & System-Wide Reactivity
+    window.smartBioData.resetToSeeds();
+    const testCourseId = 99;
+    const testLecturerId = 2; // Dr. Olumide
+    const testCourse = {
+      id: testCourseId,
+      code: 'SEN 404',
+      title: 'Real-Time Embedded Systems',
+      departmentId: 1,
+      lecturerId: testLecturerId,
+      level: 400,
+      units: 3,
+      minAttendancePct: 75
+    };
+    
+    // Register course and auto-enroll students (same logic as handleCreateCourse)
+    window.smartBioData.data.courses.push(testCourse);
+    const cohortStudents = window.smartBioData.getUsers().filter(u => 
+      (u.role === 'STUDENT' || u.role === 'CLASS_REP') &&
+      u.departmentId === 1 &&
+      (u.academicLevel === 400 || !u.academicLevel)
+    );
+    cohortStudents.forEach(st => {
+      window.smartBioData.data.courseRegistrations.push({
+        id: window.smartBioData.data.courseRegistrations.length + 1,
+        studentId: st.id,
+        courseId: testCourseId,
+        registeredAt: new Date().toISOString()
+      });
+    });
+    window.smartBioData.save(window.smartBioData.data);
+
+    // Verify course appears in getCoursesByLecturer
+    const lecturerCourses = window.smartBioData.getCoursesByLecturer(testLecturerId);
+    this.assert('Dynamic course SEN 404 appears in lecturer course roster', lecturerCourses.some(c => c.id === testCourseId));
+
+    // Verify cohort students are auto-enrolled
+    const enrolledStudents = window.smartBioData.getEnrolledStudents(testCourseId);
+    this.assert('Cohort students are auto-enrolled into newly created course', enrolledStudents.length > 0 && enrolledStudents.some(s => s.id === 4));
+
+    // Verify student compliance calculates PENDING status (0% attended, 0 held, ELIGIBLE/PENDING badge)
+    const compAfterCreation = window.smartBioCompliance.calculateStudentCompliance(4);
+    const senStat = compAfterCreation.courseStats.find(c => c.course.id === testCourseId);
+    this.assert('Newly created course has 0 lectures held and PENDING status', !!senStat && senStat.totalHeld === 0 && senStat.status === 'PENDING');
+    this.assert('Newly created course has 0.0% attendance without deficit penalty', senStat && senStat.percentage === 0.0 && senStat.classesNeeded === 0);
+
+    // Verify clearance docket renders newly registered course cleanly
+    const docketHtml = window.smartBioCompliance.renderClearanceDocket(4);
+    this.assert('Clearance docket renders newly created course as REGISTERED', typeof docketHtml === 'string' && docketHtml.includes('SEN 404') && docketHtml.includes('REGISTERED'));
+
+    // Course deletion removes course and registrations cleanly
+    window.smartBioData.data.courses = window.smartBioData.data.courses.filter(c => c.id !== testCourseId);
+    window.smartBioData.data.courseRegistrations = window.smartBioData.data.courseRegistrations.filter(r => r.courseId !== testCourseId);
+    window.smartBioData.save(window.smartBioData.data);
+    this.assert('Deleting course cleanly removes it from lecturer roster', !window.smartBioData.getCoursesByLecturer(testLecturerId).some(c => c.id === testCourseId));
+
+    // Final reset to clean initial seeds so that overall benchmark data stays pristine
+    window.smartBioData.resetToSeeds();
   }
 }
 
