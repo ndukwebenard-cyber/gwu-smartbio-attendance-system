@@ -38,7 +38,7 @@ class NUCComplianceEngine {
       const course = window.smartBioData.getCourseById(reg.courseId);
       if (!course) return;
 
-      const sessions = (data.lectureSessions || []).filter(s => s.courseId === course.id && s.status === 'CONCLUDED');
+      const sessions = (data.lectureSessions || []).filter(s => s.courseId === course.id && (s.status === 'CONCLUDED' || s.status === 'ACTIVE'));
       const totalHeld = sessions.length;
 
       // Find valid attended sessions (PRESENT or FLAGGED_RESOLVED)

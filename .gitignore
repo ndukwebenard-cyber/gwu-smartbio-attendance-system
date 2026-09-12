@@ -11,3 +11,6 @@ desktop.ini
 
 # Logs
 *.log
+
+# Firebase Cache
+.firebase/

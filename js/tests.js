@@ -42,6 +42,7 @@ class SmartBioTestSuite {
     this.testCloudConnectionStatus();
     this.testActiveSessionLifecycleAndFiltering();
     this.testReversibleBackupAndSelectiveClean();
+    this.testRoleScopingAndAdminSuite();
 
     console.log('%c───────────────────────────────────────────────────────────', 'color: #008080;');
     console.log(`%cSummary: ${this.passed} PASSED, ${this.failed} FAILED across ${this.results.length} test assertions.`, `color: ${this.failed === 0 ? '#10b981' : '#ef4444'}; font-weight: bold;`);
@@ -516,6 +517,178 @@ class SmartBioTestSuite {
     this.assert('Deleting course cleanly removes it from lecturer roster', !window.smartBioData.getCoursesByLecturer(testLecturerId).some(c => c.id === testCourseId));
 
     // Final reset to clean initial seeds so that overall benchmark data stays pristine
+    window.smartBioData.resetToSeeds();
+  }
+
+  // 12. Role-Based Scoping & Admin Governance Suite
+  testRoleScopingAndAdminSuite() {
+    const data = window.smartBioData.load();
+
+    // A. Real-Time Defaulter Synchronization with Active Lecture Sessions
+    // Baseline: Amina Mohammed (studentId: 7) has 5/10 (50.0%) in CSC 401
+    const aminaInitial = window.smartBioCompliance.calculateStudentCompliance(7);
+    const aminaInitialStat = aminaInitial.courseStats.find(c => c.course.id === 1);
+    this.assert('Amina starts at 5/10 held (50.0%) in CSC 401', aminaInitialStat && aminaInitialStat.attended === 5 && aminaInitialStat.totalHeld === 10);
+
+    // Create a live active session for CSC 401
+    const liveSession = {
+      id: 991,
+      courseId: 1,
+      lecturerId: 2,
+      topic: 'Automated Real-Time Test Session',
+      venue: 'Lab 1',
+      timestamp: new Date().toLocaleString(),
+      status: 'ACTIVE'
+    };
+    data.lectureSessions.push(liveSession);
+
+    // Student scans in during this active session
+    data.attendanceRecords.push({
+      id: 9991,
+      sessionId: 991,
+      studentId: 7,
+      method: 'WEBAUTHN_BIOMETRIC',
+      confidence: 99.2,
+      status: 'PRESENT',
+      time: '10:00 AM'
+    });
+    window.smartBioData.save(data);
+
+    // Active session scan immediately updates student compliance in Defaulter calculation
+    const aminaDuringLive = window.smartBioCompliance.calculateStudentCompliance(7);
+    const aminaLiveStat = aminaDuringLive.courseStats.find(c => c.course.id === 1);
+    this.assert(
+      'Active session scan immediately updates student compliance in Defaulter calculation',
+      aminaLiveStat && aminaLiveStat.attended === 6 && aminaLiveStat.totalHeld === 11 && aminaLiveStat.percentage === 54.5,
+      `Expected 6/11 (54.5%), got ${aminaLiveStat ? aminaLiveStat.attended : 0}/${aminaLiveStat ? aminaLiveStat.totalHeld : 0} (${aminaLiveStat ? aminaLiveStat.percentage : 0}%)`
+    );
+
+    // Clean up temporary live session & attendance record
+    data.lectureSessions = data.lectureSessions.filter(s => s.id !== 991);
+    data.attendanceRecords = data.attendanceRecords.filter(r => r.id !== 9991);
+    window.smartBioData.save(data);
+
+    // B. Lecturer Scoping: Defaulter Course Dropdown & Flagged Exceptions
+    if (window.smartBioApp) {
+      // Mock authenticated lecturer (Dr. Olawale Adeyemi, id: 2, assigned only to course 1)
+      window.smartBioApp.authenticatedUser = { id: 2, fullName: 'Dr. Olawale Adeyemi', role: 'LECTURER' };
+      window.smartBioApp.currentUserId = 2;
+
+      // Populate defaulter dropdown
+      const select = document.getElementById('defaulterCourseSelect');
+      window.smartBioApp.populateDefaulterCourseDropdown();
+      const options = select ? select.innerHTML : '';
+      this.assert(
+        'Lecturer Defaulter dropdown strictly scopes to assigned courses',
+        options.includes('CSC 401') && !options.includes('CSC 402') && !options.includes('SEN 402')
+      );
+
+      // Flagged queue scoping: add a flag for course 2 (not taught by lecturer 2)
+      data.flaggedExceptions.push({
+        id: 888,
+        sessionId: 992,
+        courseId: 2,
+        studentId: 7,
+        flagReason: 'MOCK_FLAG_COURSE_2',
+        capturedConfidence: 55,
+        status: 'PENDING_REVIEW'
+      });
+      // And a flag for course 1 (taught by lecturer 2)
+      data.flaggedExceptions.push({
+        id: 889,
+        sessionId: 10,
+        studentId: 8,
+        flagReason: 'MOCK_FLAG_COURSE_1',
+        capturedConfidence: 45,
+        status: 'PENDING_REVIEW'
+      });
+      window.smartBioData.save(data);
+
+      window.smartBioApp.renderFlaggedQueue();
+      const badge = document.getElementById('flaggedCountBadge');
+      const badgeText = badge ? badge.innerText : '';
+      this.assert(
+        'Flagged exceptions queue for lecturer only contains flags from their courses',
+        badgeText.includes('Pending') && !badgeText.includes('2 Pending')
+      );
+
+      // Clean mock flags
+      data.flaggedExceptions = data.flaggedExceptions.filter(f => f.id !== 888 && f.id !== 889);
+      window.smartBioData.save(data);
+
+      // C. Student Scoping: Active Session Banner & History Log
+      // Amina Mohammed (id: 7) is enrolled ONLY in CSC 401 (courseId: 1), NOT CSC 402 (courseId: 2)
+      window.smartBioApp.authenticatedUser = { id: 7, fullName: 'Amina Mohammed', role: 'STUDENT' };
+      window.smartBioApp.currentUserId = 7;
+
+      const nonEnrolledActiveSession = { id: 993, courseId: 2, topic: 'Graphics Session', status: 'ACTIVE' };
+      window.smartBioApp.updateRoleSessionBanners(nonEnrolledActiveSession);
+      const studentBanner = document.getElementById('studentLiveSessionBanner');
+      this.assert(
+        'Student active session banner is hidden for non-enrolled courses',
+        !studentBanner || studentBanner.classList.contains('hidden')
+      );
+
+      // History course dropdown strictly includes enrolled courses
+      window.smartBioApp.populateStudentHistoryCourseDropdown(7);
+      const histSelect = document.getElementById('studentHistoryCourseSelect');
+      const histOptions = histSelect ? histSelect.innerHTML : '';
+      this.assert(
+        'Student history dropdown only contains enrolled courses',
+        histOptions.includes('CSC 401') && !histOptions.includes('CSC 402')
+      );
+    }
+
+    // D. Admin Management Suite
+    // 1. Edit Course
+    const courseToEdit = data.courses.find(c => c.id === 1);
+    if (courseToEdit) {
+      courseToEdit.title = 'Advanced Software Engineering & Cloud Arch';
+      courseToEdit.units = 4;
+      courseToEdit.minAttendancePct = 80;
+      window.smartBioData.save(data);
+    }
+    const updatedCourse = window.smartBioData.getCourseById(1);
+    this.assert(
+      'Admin can edit course title, credit units, and attendance threshold',
+      updatedCourse && updatedCourse.title === 'Advanced Software Engineering & Cloud Arch' && updatedCourse.units === 4 && updatedCourse.minAttendancePct === 80
+    );
+
+    // 2. Edit Department
+    const deptToEdit = (data.departments || []).find(d => d.id === 1);
+    if (deptToEdit) {
+      deptToEdit.name = 'Computer Science & Software Intelligence';
+      deptToEdit.faculty = 'Faculty of Computing and AI';
+      window.smartBioData.save(data);
+    }
+    const updatedDept = (window.smartBioData.load().departments || []).find(d => d.id === 1);
+    this.assert(
+      'Admin can edit department name and faculty',
+      updatedDept && updatedDept.name === 'Computer Science & Software Intelligence' && updatedDept.faculty === 'Faculty of Computing and AI'
+    );
+
+    // 3. Create Lecturer Account
+    const newLecturer = {
+      id: Math.max(...data.users.map(u => u.id)) + 1,
+      identifier: 'LEC/2026/099',
+      fullName: 'Dr. Jane Doe',
+      email: 'j.doe@faculty.gwu.edu',
+      role: 'LECTURER',
+      departmentId: 1,
+      password: 'password123',
+      hasBiometrics: false,
+      avatar: '👩‍🏫'
+    };
+    data.users.push(newLecturer);
+    window.smartBioData.save(data);
+
+    const createdUser = window.smartBioData.getUserByIdentifier('LEC/2026/099');
+    this.assert(
+      'Admin can create a new lecturer account with full credentials',
+      createdUser && createdUser.role === 'LECTURER' && createdUser.fullName === 'Dr. Jane Doe' && createdUser.email === 'j.doe@faculty.gwu.edu'
+    );
+
+    // Final restore to benchmark seeds
     window.smartBioData.resetToSeeds();
   }
 }

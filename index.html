@@ -555,7 +555,12 @@
 
       <!-- Users & Biometric Credential Directory -->
       <div class="glass-card" style="margin-bottom: 24px;">
-        <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;">👥 User &amp; Biometric Template Directory (NDPA Compliant)</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0;">👥 User &amp; Biometric Template Directory (NDPA Compliant)</h3>
+          <button class="btn btn-primary btn-sm" onclick="smartBioApp.openCreateLecturerModal()">
+            ➕ Create Lecturer Account
+          </button>
+        </div>
         <div class="table-responsive">
           <table class="data-table">
             <thead>
@@ -1462,6 +1467,178 @@
           <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px;">
             <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.closeCreateDeptModal()">Cancel</button>
             <button type="submit" class="btn btn-primary btn-sm">✅ Create Department</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       MODAL: EDIT COURSE (Admin Only)
+       ================================================================ -->
+  <div class="modal-overlay" id="editCourseModal">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">✏️ Course Governance</span>
+          <h3 style="margin-bottom: 0;">Edit Course Attributes</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeEditCourseModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="formEditCourse" onsubmit="smartBioApp.handleSaveCourseEdit(event)">
+          <input type="hidden" id="editCourseId">
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="editCourseCode">Course Code</label>
+              <input type="text" class="form-control font-mono font-bold" id="editCourseCode" required autocapitalize="characters" data-autocase="upper">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editCourseUnits">Credit Units</label>
+              <select class="form-control" id="editCourseUnits">
+                <option value="1">1 Unit</option>
+                <option value="2">2 Units</option>
+                <option value="3" selected>3 Units</option>
+                <option value="4">4 Units</option>
+                <option value="6">6 Units (Research Project)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editCourseTitle">Course Title</label>
+            <input type="text" class="form-control" id="editCourseTitle" required autocapitalize="words" data-autocase="title">
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="editCourseLevel">Academic Level</label>
+              <select class="form-control" id="editCourseLevel">
+                <option value="100">100 Level</option>
+                <option value="200">200 Level</option>
+                <option value="300">300 Level</option>
+                <option value="400" selected>400 Level</option>
+                <option value="500">500 Level</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editCourseMinPct">NUC Minimum Attendance (%)</label>
+              <input type="number" class="form-control font-bold" id="editCourseMinPct" min="50" max="100" value="75" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editCourseDepartment">Department</label>
+            <select class="form-control" id="editCourseDepartment" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editCourseLecturer">Assigned Course Lecturer (Owner)</label>
+            <select class="form-control" id="editCourseLecturer" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.closeEditCourseModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">💾 Save Course Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       MODAL: EDIT DEPARTMENT (Admin Only)
+       ================================================================ -->
+  <div class="modal-overlay" id="editDeptModal">
+    <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">🏫 Department Governance</span>
+          <h3 style="margin-bottom: 0;">Edit Academic Department</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeEditDeptModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="formEditDept" onsubmit="smartBioApp.handleSaveDeptEdit(event)">
+          <input type="hidden" id="editDeptId">
+
+          <div class="form-group">
+            <label class="form-label" for="editDeptCode">Department Code</label>
+            <input type="text" class="form-control font-mono font-bold" id="editDeptCode" maxlength="6" autocapitalize="characters" data-autocase="upper" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editDeptName">Department Name</label>
+            <input type="text" class="form-control" id="editDeptName" autocapitalize="words" data-autocase="title" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editDeptFaculty">Faculty / School</label>
+            <input type="text" class="form-control" id="editDeptFaculty" autocapitalize="words" data-autocase="title" required>
+          </div>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.closeEditDeptModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">💾 Save Department Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       MODAL: CREATE LECTURER ACCOUNT (Admin Only)
+       ================================================================ -->
+  <div class="modal-overlay" id="createLecturerModal">
+    <div class="modal-dialog" style="max-width: 540px;">
+      <div class="modal-header">
+        <div>
+          <span class="hero-tag" style="margin-bottom: 4px;">👨‍🏫 Faculty Provisioning</span>
+          <h3 style="margin-bottom: 0;">Create Lecturer Account</h3>
+        </div>
+        <button class="modal-close" onclick="smartBioApp.closeCreateLecturerModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="formCreateLecturer" onsubmit="smartBioApp.handleCreateLecturer(event)">
+          <div class="form-group">
+            <label class="form-label" for="newLecturerFullName">Faculty Member Full Name</label>
+            <input type="text" class="form-control" id="newLecturerFullName" placeholder="e.g. Dr. Ngozi Okonjo" required autocapitalize="words" data-autocase="title">
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="newLecturerIdentifier">Staff Identifier</label>
+              <input type="text" class="form-control font-mono font-bold" id="newLecturerIdentifier" placeholder="LEC/2026/003" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="newLecturerEmail">Institutional Email</label>
+              <input type="email" class="form-control" id="newLecturerEmail" placeholder="n.okonjo@faculty.gwu.edu" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="newLecturerDepartment">Academic Department</label>
+            <select class="form-control" id="newLecturerDepartment" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="newLecturerPassword">Default Password</label>
+            <input type="text" class="form-control font-mono" id="newLecturerPassword" value="password123" required>
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; display: block;">
+              Default password provided to faculty member for initial login.
+            </span>
+          </div>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="smartBioApp.closeCreateLecturerModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">✅ Create Faculty Account</button>
           </div>
         </form>
       </div>

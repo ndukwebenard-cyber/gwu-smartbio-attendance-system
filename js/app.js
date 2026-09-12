@@ -1096,6 +1096,16 @@ class SmartBioApp {
   renderActiveSessionUI(session) {
     if (!session || session.status !== 'ACTIVE') return;
 
+    // Scope check: If logged in as a LECTURER, only show the lecturer live session controller banner if this session belongs to them
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+    if (isLecturer && this.currentUserId && Number(session.lecturerId) !== Number(this.currentUserId)) {
+      const banner = document.getElementById('liveSessionActiveBanner');
+      const formBox = document.getElementById('lectureSessionConfigBox');
+      if (banner) banner.classList.add('hidden');
+      if (formBox) formBox.classList.remove('hidden');
+      return;
+    }
+
     const banner = document.getElementById('liveSessionActiveBanner');
     const formBox = document.getElementById('lectureSessionConfigBox');
     if (banner) banner.classList.remove('hidden');
@@ -1137,34 +1147,49 @@ class SmartBioApp {
     const repBanner = document.getElementById('repLiveSessionBanner');
 
     if (session && session.status === 'ACTIVE') {
-      const c = course || (window.smartBioData.load().courses || []).find(item => item.id === session.courseId) || { code: 'Course', title: 'Lecture Session' };
+      const data = window.smartBioData.load();
+      const c = course || (data.courses || []).find(item => item.id === session.courseId) || { code: 'Course', title: 'Lecture Session' };
       
+      // Determine student enrollment for scoping active banner
+      const studentId = this.currentUserId ? Number(this.currentUserId) : (this.authenticatedUser ? Number(this.authenticatedUser.id) : null);
+      const isEnrolled = !studentId || (data.courseRegistrations || []).some(r => Number(r.studentId) === studentId && Number(r.courseId) === Number(session.courseId));
+
       if (studentBanner) {
-        studentBanner.classList.remove('hidden');
-        const cCode = document.getElementById('studentActiveCourseCode');
-        const topic = document.getElementById('studentActiveTopic');
-        const lect = document.getElementById('studentActiveLecturer');
-        const ven = document.getElementById('studentActiveVenue');
-        if (cCode) cCode.innerText = c.code;
-        if (topic) topic.innerText = session.topic || c.title;
-        if (lect) lect.innerText = session.lecturerName || 'Assigned Lecturer';
-        if (ven) ven.innerText = session.venue || 'Classroom';
+        if (isEnrolled) {
+          studentBanner.classList.remove('hidden');
+          const cCode = document.getElementById('studentActiveCourseCode');
+          const topic = document.getElementById('studentActiveTopic');
+          const lect = document.getElementById('studentActiveLecturer');
+          const ven = document.getElementById('studentActiveVenue');
+          if (cCode) cCode.innerText = c.code;
+          if (topic) topic.innerText = session.topic || c.title;
+          if (lect) lect.innerText = session.lecturerName || 'Assigned Lecturer';
+          if (ven) ven.innerText = session.venue || 'Classroom';
+        } else {
+          studentBanner.classList.add('hidden');
+        }
       }
 
       if (repBanner) {
-        repBanner.classList.remove('hidden');
-        const cCode = document.getElementById('repActiveCourseCode');
-        const topic = document.getElementById('repActiveTopic');
-        const lect = document.getElementById('repActiveLecturer');
-        const ven = document.getElementById('repActiveVenue');
-        if (cCode) cCode.innerText = c.code;
-        if (topic) topic.innerText = session.topic || c.title;
-        if (lect) lect.innerText = session.lecturerName || 'Assigned Lecturer';
-        if (ven) ven.innerText = session.venue || 'Classroom';
+        if (isEnrolled) {
+          repBanner.classList.remove('hidden');
+          const cCode = document.getElementById('repActiveCourseCode');
+          const topic = document.getElementById('repActiveTopic');
+          const lect = document.getElementById('repActiveLecturer');
+          const ven = document.getElementById('repActiveVenue');
+          if (cCode) cCode.innerText = c.code;
+          if (topic) topic.innerText = session.topic || c.title;
+          if (lect) lect.innerText = session.lecturerName || 'Assigned Lecturer';
+          if (ven) ven.innerText = session.venue || 'Classroom';
+        } else {
+          repBanner.classList.add('hidden');
+        }
       }
     } else {
       if (studentBanner) studentBanner.classList.add('hidden');
       if (repBanner) repBanner.classList.add('hidden');
+      const lecturerBanner = document.getElementById('liveSessionActiveBanner');
+      if (lecturerBanner) lecturerBanner.classList.add('hidden');
     }
   }
 
@@ -1242,8 +1267,21 @@ class SmartBioApp {
     if (!tableBody) return;
 
     const data = window.smartBioData.load();
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
 
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
+      // If logged in as a LECTURER, ensure active session belongs to this lecturer
+      if (isLecturer && this.currentUserId && Number(this.activeLectureSession.lecturerId) !== Number(this.currentUserId)) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+              📡 Real-Time Synchronizer Ready — Start a lecture session above to begin live check-in monitoring.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
       // 1. ACTIVE SESSION MODE: Strictly show verified attendees for THIS live session
       const activeSessId = Number(this.activeLectureSession.id);
       const activeCourse = (data.courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
@@ -1283,8 +1321,14 @@ class SmartBioApp {
       });
       tableBody.innerHTML = html;
     } else {
-      // 2. NO ACTIVE SESSION: Show most recent attendance scans labeled with session metadata
-      const records = (data.attendanceRecords || []).slice(-8).reverse();
+      // 2. NO ACTIVE SESSION: Show most recent attendance scans filtered for lecturer's assigned courses
+      let records = data.attendanceRecords || [];
+      if (isLecturer && this.currentUserId) {
+        const lecturerCourses = new Set((data.courses || []).filter(c => Number(c.lecturerId) === Number(this.currentUserId)).map(c => c.id));
+        const lecturerSessions = new Set((data.lectureSessions || []).filter(s => lecturerCourses.has(s.courseId)).map(s => s.id));
+        records = records.filter(a => lecturerSessions.has(a.sessionId));
+      }
+      records = records.slice(-8).reverse();
 
       if (records.length === 0) {
         tableBody.innerHTML = `
@@ -1322,7 +1366,15 @@ class SmartBioApp {
     if (!select) return;
 
     const data = window.smartBioData.load();
-    const courses = data.courses || [];
+    let courses = data.courses || [];
+
+    // Scope check: If logged in as a LECTURER, strictly show their assigned courses
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+    if (isLecturer && this.currentUserId) {
+      const assigned = courses.filter(c => Number(c.lecturerId) === Number(this.currentUserId));
+      if (assigned.length > 0) courses = assigned;
+    }
+
     const currentVal = preferredCourseId ? String(preferredCourseId) : select.value;
 
     let html = '';
@@ -1332,6 +1384,8 @@ class SmartBioApp {
     select.innerHTML = html;
     if (currentVal && courses.some(c => String(c.id) === String(currentVal))) {
       select.value = currentVal;
+    } else if (courses.length > 0) {
+      select.value = courses[0].id;
     }
   }
 
@@ -1339,7 +1393,21 @@ class SmartBioApp {
     const container = document.getElementById('flaggedQueueContainer');
     if (!container) return;
 
-    const flags = window.smartBioData.getFlagged();
+    let flags = window.smartBioData.getFlagged() || [];
+    const data = window.smartBioData.load();
+
+    // Scope check: if logged in as a LECTURER, only show flags belonging to this lecturer's assigned courses
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+    if (isLecturer && this.currentUserId) {
+      const lecturerCourses = new Set((data.courses || []).filter(c => Number(c.lecturerId) === Number(this.currentUserId)).map(c => c.id));
+      flags = flags.filter(flag => {
+        const session = (data.lectureSessions || []).find(s => s.id === flag.sessionId);
+        if (session && lecturerCourses.has(session.courseId)) return true;
+        if (flag.courseId && lecturerCourses.has(flag.courseId)) return true;
+        return false;
+      });
+    }
+
     const countBadge = document.getElementById('flaggedCountBadge');
     if (countBadge) countBadge.innerText = `${flags.length} Pending`;
 
@@ -1431,7 +1499,13 @@ class SmartBioApp {
 
     const data = window.smartBioData.load();
     const select = document.getElementById('defaulterCourseSelect');
-    const selectedCourseId = select && select.value ? Number(select.value) : (data.courses[0] ? data.courses[0].id : 1);
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+    let defaultCourse = data.courses[0];
+    if (isLecturer && this.currentUserId) {
+      const assigned = (data.courses || []).filter(c => Number(c.lecturerId) === Number(this.currentUserId));
+      if (assigned.length > 0) defaultCourse = assigned[0];
+    }
+    const selectedCourseId = select && select.value ? Number(select.value) : (defaultCourse ? defaultCourse.id : 1);
 
     const course = (data.courses || []).find(c => c.id === selectedCourseId) || { code: 'CSC 401', minAttendancePct: 75 };
     const courseTitleEl = document.getElementById('lecturerDefaulterCourseCode');
@@ -1633,7 +1707,11 @@ class SmartBioApp {
     if (!select) return;
 
     const data = window.smartBioData.load();
-    const courses = data.courses || [];
+    const registrations = (data.courseRegistrations || []).filter(r => Number(r.studentId) === Number(studentId));
+    const registeredCourseIds = new Set(registrations.map(r => Number(r.courseId)));
+
+    // Filter courses strictly to registered courses
+    const courses = (data.courses || []).filter(c => registeredCourseIds.has(Number(c.id)));
     const currentVal = select.value;
 
     let html = '<option value="ALL">All Enrolled Courses</option>';
@@ -1727,14 +1805,18 @@ class SmartBioApp {
     const courseHeadingEl = document.getElementById('studentHistoryCourseCode');
     if (courseHeadingEl) {
       if (selectedCourseVal === 'ALL' || !selectedCourseVal) {
-        courseHeadingEl.innerText = 'All Courses';
+        courseHeadingEl.innerText = 'All Enrolled Courses';
       } else {
         const c = (data.courses || []).find(item => item.id === Number(selectedCourseVal));
-        courseHeadingEl.innerText = c ? c.code : 'All Courses';
+        courseHeadingEl.innerText = c ? c.code : 'All Enrolled Courses';
       }
     }
 
-    let sessions = data.lectureSessions || [];
+    // Get registered courses for this student
+    const registrations = (data.courseRegistrations || []).filter(r => Number(r.studentId) === Number(studentId));
+    const registeredCourseIds = new Set(registrations.map(r => Number(r.courseId)));
+
+    let sessions = (data.lectureSessions || []).filter(s => registeredCourseIds.has(Number(s.courseId)));
     if (selectedCourseVal && selectedCourseVal !== 'ALL') {
       sessions = sessions.filter(s => s.courseId === Number(selectedCourseVal));
     }
@@ -1933,6 +2015,9 @@ class SmartBioApp {
             <td><strong class="text-warning">${c.minAttendancePct || 75}%</strong></td>
             <td>
               <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="smartBioApp.openEditCourseModal(${c.id})" style="padding: 4px 8px; font-size: 0.72rem; border-color: var(--primary); color: var(--primary);">
+                  ✏️ Edit
+                </button>
                 <button class="btn btn-secondary btn-sm" onclick="smartBioApp.openReassignCourseModal(${c.id})" style="padding: 4px 8px; font-size: 0.72rem; border-color: var(--primary); color: var(--primary);">
                   🔄 Reassign Owner
                 </button>
@@ -2442,6 +2527,26 @@ class SmartBioApp {
         courseDept.value = currentVal;
       }
     }
+
+    // 3. Edit Course Modal Department Select
+    const editCourseDept = document.getElementById('editCourseDepartment');
+    if (editCourseDept) {
+      const currentVal = editCourseDept.value;
+      editCourseDept.innerHTML = departments.map(d => `<option value="${d.id}">${d.code} — ${d.name}</option>`).join('');
+      if (currentVal && departments.some(d => String(d.id) === String(currentVal))) {
+        editCourseDept.value = currentVal;
+      }
+    }
+
+    // 4. Create Lecturer Modal Department Select
+    const newLectDept = document.getElementById('newLecturerDepartment');
+    if (newLectDept) {
+      const currentVal = newLectDept.value;
+      newLectDept.innerHTML = departments.map(d => `<option value="${d.id}">${d.code} — ${d.name}</option>`).join('');
+      if (currentVal && departments.some(d => String(d.id) === String(currentVal))) {
+        newLectDept.value = currentVal;
+      }
+    }
   }
 
   populateLectureCourseDropdown(preferredCourseId = null) {
@@ -2697,9 +2802,14 @@ class SmartBioApp {
           <td style="color:var(--text-muted); font-size:0.82rem;">${dept.faculty || '—'}</td>
           <td><span class="badge badge-at-risk">${studentCount} students</span></td>
           <td>
-            <button class="btn btn-danger btn-sm" onclick="smartBioApp.handleDeleteDept(${dept.id})" style="padding: 3px 10px; font-size: 0.72rem;">
-              🗑️ Delete
-            </button>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary btn-sm" onclick="smartBioApp.openEditDeptModal(${dept.id})" style="padding: 3px 10px; font-size: 0.72rem; border-color: var(--primary); color: var(--primary);">
+                ✏️ Edit
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="smartBioApp.handleDeleteDept(${dept.id})" style="padding: 3px 10px; font-size: 0.72rem;">
+                🗑️ Delete
+              </button>
+            </div>
           </td>
         </tr>
       `;
@@ -3082,6 +3192,256 @@ class SmartBioApp {
     this.refreshAllCourseUI();
     this.broadcastSync('COURSES_UPDATED');
     this.showToast(`Deleted course ${course.code}`, 'info');
+  }
+
+  // ── Course Edit Modal (Admin) ──────────────────────────────────────────
+  openEditCourseModal(courseId) {
+    const data = window.smartBioData.load();
+    const course = (data.courses || []).find(c => c.id === Number(courseId));
+    if (!course) return;
+
+    const idInput = document.getElementById('editCourseId');
+    const codeInput = document.getElementById('editCourseCode');
+    const titleInput = document.getElementById('editCourseTitle');
+    const unitsSelect = document.getElementById('editCourseUnits');
+    const levelSelect = document.getElementById('editCourseLevel');
+    const minPctInput = document.getElementById('editCourseMinPct');
+    const deptSelect = document.getElementById('editCourseDepartment');
+    const lectSelect = document.getElementById('editCourseLecturer');
+
+    if (idInput) idInput.value = course.id;
+    if (codeInput) codeInput.value = course.code;
+    if (titleInput) titleInput.value = course.title;
+    if (unitsSelect) unitsSelect.value = String(course.units || 3);
+    if (levelSelect) levelSelect.value = String(course.level || 400);
+    if (minPctInput) minPctInput.value = course.minAttendancePct || 75;
+
+    if (deptSelect) {
+      deptSelect.innerHTML = (data.departments || []).map(d => `<option value="${d.id}" ${d.id === course.departmentId ? 'selected' : ''}>${d.code} — ${d.name}</option>`).join('');
+      deptSelect.value = course.departmentId;
+    }
+
+    if (lectSelect) {
+      const lecturers = (data.users || []).filter(u => u.role === 'LECTURER' || u.role === 'ADMIN');
+      lectSelect.innerHTML = lecturers.map(l => `<option value="${l.id}" ${l.id === course.lecturerId ? 'selected' : ''}>${l.fullName} (${l.identifier})</option>`).join('');
+      lectSelect.value = course.lecturerId;
+    }
+
+    this.openModal('editCourseModal');
+  }
+
+  closeEditCourseModal() {
+    this.closeModal('editCourseModal');
+  }
+
+  async handleSaveCourseEdit(e) {
+    e.preventDefault();
+    const courseId = Number(document.getElementById('editCourseId').value);
+    const code = document.getElementById('editCourseCode').value.trim().toUpperCase();
+    const title = document.getElementById('editCourseTitle').value.trim();
+    const units = Number(document.getElementById('editCourseUnits').value);
+    const level = Number(document.getElementById('editCourseLevel').value);
+    const minAttendancePct = Number(document.getElementById('editCourseMinPct').value) || 75;
+    const departmentId = Number(document.getElementById('editCourseDepartment').value);
+    const lecturerId = Number(document.getElementById('editCourseLecturer').value);
+
+    const data = window.smartBioData.load();
+    const courseIdx = data.courses.findIndex(c => c.id === courseId);
+    if (courseIdx === -1) return;
+
+    // Check duplicate code if changed
+    const duplicate = data.courses.find(c => c.id !== courseId && c.code.toUpperCase() === code);
+    if (duplicate) {
+      this.showToast(`Course code "${code}" already exists for ${duplicate.title}`, 'error');
+      return;
+    }
+
+    data.courses[courseIdx] = {
+      ...data.courses[courseIdx],
+      code,
+      title,
+      units,
+      level,
+      minAttendancePct,
+      departmentId,
+      lecturerId
+    };
+
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'COURSE_UPDATE',
+      details: `Updated course ${code} (${title}, ${units} Units, ${minAttendancePct}% threshold)`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        await window.smartBioCloud.db.collection('courses').doc(String(courseId)).update(data.courses[courseIdx]);
+      } catch (err) {}
+    }
+
+    this.closeEditCourseModal();
+    this.refreshAllCourseUI(courseId);
+    this.broadcastSync('COURSES_UPDATED', { preferredCourseId: courseId });
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Course ${code} updated successfully!`, 'success');
+  }
+
+  // ── Department Edit Modal (Admin) ──────────────────────────────────────
+  openEditDeptModal(deptId) {
+    const data = window.smartBioData.load();
+    const dept = (data.departments || []).find(d => d.id === Number(deptId));
+    if (!dept) return;
+
+    const idInput = document.getElementById('editDeptId');
+    const codeInput = document.getElementById('editDeptCode');
+    const nameInput = document.getElementById('editDeptName');
+    const facultyInput = document.getElementById('editDeptFaculty');
+
+    if (idInput) idInput.value = dept.id;
+    if (codeInput) codeInput.value = dept.code;
+    if (nameInput) nameInput.value = dept.name;
+    if (facultyInput) facultyInput.value = dept.faculty || '';
+
+    this.openModal('editDeptModal');
+  }
+
+  closeEditDeptModal() {
+    this.closeModal('editDeptModal');
+  }
+
+  handleSaveDeptEdit(e) {
+    e.preventDefault();
+    const deptId = Number(document.getElementById('editDeptId').value);
+    const code = document.getElementById('editDeptCode').value.trim().toUpperCase();
+    const name = document.getElementById('editDeptName').value.trim();
+    const faculty = document.getElementById('editDeptFaculty').value.trim();
+
+    const data = window.smartBioData.load();
+    const deptIdx = (data.departments || []).findIndex(d => d.id === deptId);
+    if (deptIdx === -1) return;
+
+    // Check duplicate code
+    const duplicate = (data.departments || []).find(d => d.id !== deptId && d.code.toUpperCase() === code);
+    if (duplicate) {
+      this.showToast(`Department code "${code}" already exists for ${duplicate.name}`, 'error');
+      return;
+    }
+
+    data.departments[deptIdx] = {
+      ...data.departments[deptIdx],
+      code,
+      name,
+      faculty
+    };
+
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'DEPT_UPDATE',
+      details: `Updated department ${code} (${name}) in ${faculty}`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+    this.populateDepartmentDropdowns();
+    this.updateRegMatricPreview();
+    this.closeEditDeptModal();
+    this.renderAdminDepartments(data);
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Department ${code} updated successfully!`, 'success');
+  }
+
+  // ── Lecturer Account Provisioning (Admin) ──────────────────────────────
+  openCreateLecturerModal() {
+    const form = document.getElementById('formCreateLecturer');
+    if (form) form.reset();
+
+    const data = window.smartBioData.load();
+    const deptSelect = document.getElementById('newLecturerDepartment');
+    if (deptSelect) {
+      deptSelect.innerHTML = (data.departments || []).map(d => `<option value="${d.id}">${d.code} — ${d.name}</option>`).join('');
+    }
+
+    // Auto-generate next staff identifier
+    const idInput = document.getElementById('newLecturerIdentifier');
+    if (idInput) {
+      const lecturers = (data.users || []).filter(u => u.role === 'LECTURER');
+      const nextNum = lecturers.length + 3;
+      idInput.value = `LEC/2026/${String(nextNum).padStart(3, '0')}`;
+    }
+
+    this.openModal('createLecturerModal');
+  }
+
+  closeCreateLecturerModal() {
+    this.closeModal('createLecturerModal');
+  }
+
+  async handleCreateLecturer(e) {
+    e.preventDefault();
+    const fullName = document.getElementById('newLecturerFullName').value.trim();
+    const identifier = document.getElementById('newLecturerIdentifier').value.trim().toUpperCase();
+    const email = document.getElementById('newLecturerEmail').value.trim().toLowerCase();
+    const departmentId = Number(document.getElementById('newLecturerDepartment').value);
+    const password = document.getElementById('newLecturerPassword').value.trim() || 'password123';
+
+    const data = window.smartBioData.load();
+
+    // Validate uniqueness
+    if ((data.users || []).some(u => u.identifier.toUpperCase() === identifier)) {
+      this.showToast(`Staff identifier "${identifier}" already exists.`, 'error');
+      return;
+    }
+    if ((data.users || []).some(u => u.email.toLowerCase() === email)) {
+      this.showToast(`Email address "${email}" is already registered.`, 'error');
+      return;
+    }
+
+    const nextId = (data.users && data.users.length) ? Math.max(...data.users.map(u => u.id)) + 1 : 1;
+    const newLecturer = {
+      id: nextId,
+      identifier,
+      fullName,
+      email,
+      role: 'LECTURER',
+      departmentId,
+      password,
+      hasBiometrics: false,
+      avatar: '👨‍🏫'
+    };
+
+    data.users.push(newLecturer);
+
+    const adminUser = this.authenticatedUser || { fullName: 'Administrator', role: 'ADMIN', id: 1 };
+    data.auditLogs.push({
+      id: data.auditLogs.length ? Math.max(...data.auditLogs.map(a => a.id)) + 1 : 1,
+      actorId: adminUser.id,
+      actor: `${adminUser.fullName} (${adminUser.role})`,
+      action: 'USER_CREATE',
+      details: `Provisioned new lecturer account ${fullName} (${identifier}, ${email})`,
+      time: new Date().toLocaleString()
+    });
+
+    window.smartBioData.save(data);
+
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      try {
+        await window.smartBioCloud.db.collection('users').doc(String(nextId)).set(newLecturer);
+      } catch (err) {}
+    }
+
+    this.closeCreateLecturerModal();
+    this.renderAdminPortal();
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`✓ Lecturer account for ${fullName} (${identifier}) created successfully!`, 'success');
   }
 
   // 12. Toast UI Notification System
