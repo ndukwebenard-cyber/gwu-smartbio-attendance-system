@@ -31,6 +31,9 @@ class SmartBioTestSuite {
     this.passed = 0;
     this.failed = 0;
 
+    // Isolate active state: Take non-destructive snapshot of university database
+    this.preTestSnapshot = JSON.parse(JSON.stringify(window.smartBioData.load()));
+
     this.testDataNormalization();
     this.testNUCComplianceEngine();
     this.testDeficitForecasting();
@@ -43,6 +46,9 @@ class SmartBioTestSuite {
     this.testActiveSessionLifecycleAndFiltering();
     this.testReversibleBackupAndSelectiveClean();
     this.testRoleScopingAndAdminSuite();
+
+    // Restore pristine pre-test university database state
+    window.smartBioData.save(JSON.parse(JSON.stringify(this.preTestSnapshot)));
 
     console.log('%c───────────────────────────────────────────────────────────', 'color: #008080;');
     console.log(`%cSummary: ${this.passed} PASSED, ${this.failed} FAILED across ${this.results.length} test assertions.`, `color: ${this.failed === 0 ? '#10b981' : '#ef4444'}; font-weight: bold;`);
@@ -461,7 +467,11 @@ class SmartBioTestSuite {
     this.assert('importBackup loads valid JSON backup file structure', window.smartBioData.getUsers().length === 1 && window.smartBioData.getCourses().length === 1);
 
     // 6. Test Dynamic Course Creation & System-Wide Reactivity
-    window.smartBioData.resetToSeeds();
+    if (this.preTestSnapshot) {
+      window.smartBioData.save(JSON.parse(JSON.stringify(this.preTestSnapshot)));
+    } else {
+      window.smartBioData.resetToSeeds();
+    }
     const testCourseId = 99;
     const testLecturerId = 2; // Dr. Olumide
     const testCourse = {
@@ -516,8 +526,12 @@ class SmartBioTestSuite {
     window.smartBioData.save(window.smartBioData.data);
     this.assert('Deleting course cleanly removes it from lecturer roster', !window.smartBioData.getCoursesByLecturer(testLecturerId).some(c => c.id === testCourseId));
 
-    // Final reset to clean initial seeds so that overall benchmark data stays pristine
-    window.smartBioData.resetToSeeds();
+    // Non-destructive restore to pre-test baseline
+    if (this.preTestSnapshot) {
+      window.smartBioData.save(JSON.parse(JSON.stringify(this.preTestSnapshot)));
+    } else {
+      window.smartBioData.resetToSeeds();
+    }
   }
 
   // 12. Role-Based Scoping & Admin Governance Suite
@@ -688,8 +702,12 @@ class SmartBioTestSuite {
       createdUser && createdUser.role === 'LECTURER' && createdUser.fullName === 'Dr. Jane Doe' && createdUser.email === 'j.doe@faculty.gwu.edu'
     );
 
-    // Final restore to benchmark seeds
-    window.smartBioData.resetToSeeds();
+    // Final non-destructive restore to user's real university state
+    if (this.preTestSnapshot) {
+      window.smartBioData.save(JSON.parse(JSON.stringify(this.preTestSnapshot)));
+    } else {
+      window.smartBioData.resetToSeeds();
+    }
   }
 }
 

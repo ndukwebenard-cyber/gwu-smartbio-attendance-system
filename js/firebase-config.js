@@ -103,12 +103,18 @@ class CloudSyncEngine {
 
         this.isConnected = typeof navigator.onLine === 'undefined' ? true : navigator.onLine;
         this.updateSyncUI();
+
+        // 1. Authoritative Cloud Hydration: Pull all datasets from Firestore
+        await this.hydrateFromFirestore();
+
+        // 2. Attach Real-time Listeners
         this.setupRealtimeListeners();
 
         // Listen to online / offline network transitions
-        window.addEventListener('online', () => {
+        window.addEventListener('online', async () => {
           this.isConnected = true;
           this.updateSyncUI();
+          await this.hydrateFromFirestore();
           this.setupRealtimeListeners();
           console.log('🌐 Network online: Cloud Firestore connected');
         });
@@ -131,6 +137,159 @@ class CloudSyncEngine {
       console.error('Firebase initialization error:', e);
       this.isConnected = false;
       this.updateSyncUI();
+      return false;
+    }
+  }
+
+  // Authoritative Cloud Hydration: Read collections directly from Firestore
+  async hydrateFromFirestore() {
+    if (!this.isConnected || !this.db) return false;
+
+    try {
+      console.log('🔄 Hydrating authoritative university data from Google Cloud Firestore...');
+      const data = window.smartBioData.load();
+
+      // 1. Fetch Departments
+      const deptSnap = await this.db.collection('departments').get();
+      if (!deptSnap.empty) {
+        const cloudDepts = deptSnap.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: Number(d.id) || Number(doc.id) || d.id,
+            code: d.code,
+            name: d.name,
+            faculty: d.faculty || 'Faculty of Basic & Applied Sciences'
+          };
+        });
+
+        const deptMap = new Map();
+        (data.departments || []).forEach(d => deptMap.set(Number(d.id), d));
+        cloudDepts.forEach(d => deptMap.set(Number(d.id), d));
+        data.departments = Array.from(deptMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+      }
+
+      // 2. Fetch Courses
+      const courseSnap = await this.db.collection('courses').get();
+      if (!courseSnap.empty) {
+        const cloudCourses = courseSnap.docs.map(doc => {
+          const c = doc.data();
+          return {
+            id: Number(c.id) || Number(doc.id) || c.id,
+            code: c.code,
+            title: c.title,
+            units: Number(c.units) || 3,
+            departmentId: Number(c.departmentId),
+            level: Number(c.level),
+            lecturerId: Number(c.lecturerId) || 1,
+            minAttendancePct: Number(c.minAttendancePct) || 75
+          };
+        });
+
+        const courseMap = new Map();
+        (data.courses || []).forEach(c => courseMap.set(Number(c.id), c));
+        cloudCourses.forEach(c => courseMap.set(Number(c.id), c));
+        data.courses = Array.from(courseMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+      }
+
+      // 3. Fetch Users
+      const userSnap = await this.db.collection('users').get();
+      if (!userSnap.empty) {
+        const cloudUsers = userSnap.docs.map(doc => {
+          const u = doc.data();
+          return {
+            id: Number(u.id) || Number(doc.id) || u.id,
+            identifier: u.identifier,
+            fullName: u.fullName,
+            email: u.email,
+            role: u.role,
+            departmentId: Number(u.departmentId) || 1,
+            academicLevel: u.academicLevel ? Number(u.academicLevel) : null,
+            avatar: u.avatar || (u.role === 'LECTURER' ? '👨‍🏫' : (u.role === 'ADMIN' ? '👨‍💼' : '🎓')),
+            hasBiometrics: !!u.hasBiometrics,
+            fingerTemplate: u.fingerTemplate || null,
+            credentialId: u.credentialId || null
+          };
+        });
+
+        const userMap = new Map();
+        (data.users || []).forEach(u => userMap.set(Number(u.id), u));
+        cloudUsers.forEach(u => userMap.set(Number(u.id), u));
+        data.users = Array.from(userMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+      }
+
+      // 4. Fetch Course Registrations
+      const regSnap = await this.db.collection('courseRegistrations').get();
+      const cloudRegs = [];
+      if (!regSnap.empty) {
+        regSnap.docs.forEach(doc => {
+          const r = doc.data();
+          cloudRegs.push({
+            id: Number(r.id) || Number(doc.id) || r.id,
+            studentId: Number(r.studentId),
+            courseId: Number(r.courseId),
+            sessionId: Number(r.sessionId) || 1
+          });
+        });
+      }
+
+      const regMap = new Map();
+      (data.courseRegistrations || []).forEach(r => regMap.set(`${r.studentId}_${r.courseId}`, r));
+      cloudRegs.forEach(r => regMap.set(`${r.studentId}_${r.courseId}`, r));
+
+      // Auto-Reconcile cohort enrollments for courses/students in same department & level
+      let nextRegId = Math.max(0, ...Array.from(regMap.values()).map(r => Number(r.id) || 0));
+      const missingCloudWrites = [];
+
+      (data.courses || []).forEach(course => {
+        const eligibleStudents = (data.users || []).filter(u =>
+          (u.role === 'STUDENT' || u.role === 'CLASS_REP') &&
+          Number(u.departmentId) === Number(course.departmentId) &&
+          (!course.level || Number(u.academicLevel) === Number(course.level))
+        );
+
+        eligibleStudents.forEach(st => {
+          const key = `${st.id}_${course.id}`;
+          if (!regMap.has(key)) {
+            nextRegId++;
+            const newReg = {
+              id: nextRegId,
+              studentId: Number(st.id),
+              courseId: Number(course.id),
+              sessionId: 1
+            };
+            regMap.set(key, newReg);
+            missingCloudWrites.push(newReg);
+          }
+        });
+      });
+
+      data.courseRegistrations = Array.from(regMap.values());
+
+      // Save to local cache
+      window.smartBioData.save(data);
+
+      // Backfill missing registrations to Firestore
+      if (missingCloudWrites.length > 0) {
+        try {
+          const batch = this.db.batch();
+          missingCloudWrites.forEach(reg => {
+            const ref = this.db.collection('courseRegistrations').doc(String(reg.id));
+            batch.set(ref, reg);
+          });
+          await batch.commit();
+          console.log(`✓ Synchronized ${missingCloudWrites.length} course registrations to Cloud Firestore.`);
+        } catch (regWriteErr) {
+          console.warn('Registration backfill notice:', regWriteErr.message);
+        }
+      }
+
+      console.log('✅ Authoritative university datasets hydrated from Cloud Firestore.');
+
+      // Notify application of fresh cloud state
+      window.dispatchEvent(new CustomEvent('smartbio:cloud_hydrated', { detail: data }));
+      return true;
+    } catch (e) {
+      console.warn('Firestore hydration notice:', e.message);
       return false;
     }
   }
@@ -175,7 +334,16 @@ class CloudSyncEngine {
         synced++;
       });
 
-      // 4. Sync attendance records accumulated while offline
+      // 4. Sync Course Registrations
+      (data.courseRegistrations || []).forEach(r => {
+        batch.set(this.db.collection('courseRegistrations').doc(String(r.id)), {
+          ...r,
+          syncedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        synced++;
+      });
+
+      // 5. Sync attendance records accumulated while offline
       for (const a of (data.attendanceRecords || [])) {
         const ref = this.db.collection('attendance_records').doc(String(a.id));
         const existing = await ref.get();
@@ -187,7 +355,7 @@ class CloudSyncEngine {
         }
       }
 
-      // 5. Sync flagged exceptions accumulated while offline
+      // 6. Sync flagged exceptions accumulated while offline
       for (const f of (data.flaggedExceptions || [])) {
         const ref = this.db.collection('flagged_exceptions').doc(String(f.id));
         const existing = await ref.get();
@@ -244,7 +412,6 @@ class CloudSyncEngine {
             const sessionData = doc.data();
             window.dispatchEvent(new CustomEvent('smartbio:session_update', { detail: sessionData }));
           } else {
-            // When document is deleted or status changed to CONCLUDED, unconditionally invalidate active session
             try {
               localStorage.removeItem('smartbio_active_session');
             } catch (e) {}
@@ -254,6 +421,109 @@ class CloudSyncEngine {
           }
         }, (error) => {
           console.warn('Firestore active session listener notice:', error.message);
+        });
+
+      // 4. Real-time Departments Listener (SSOT)
+      this.db.collection('departments')
+        .onSnapshot((snapshot) => {
+          if (!snapshot.empty) {
+            const data = window.smartBioData.load();
+            const cloudDepts = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.data().id) || Number(d.id) || d.id }));
+            const deptMap = new Map();
+            (data.departments || []).forEach(d => deptMap.set(Number(d.id), d));
+            cloudDepts.forEach(d => deptMap.set(Number(d.id), d));
+            data.departments = Array.from(deptMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+            window.smartBioData.save(data);
+            window.dispatchEvent(new CustomEvent('smartbio:departments_updated', { detail: data.departments }));
+          }
+        }, (error) => {
+          console.warn('Firestore departments listener notice:', error.message);
+        });
+
+      // 5. Real-time Courses Listener (SSOT)
+      this.db.collection('courses')
+        .onSnapshot((snapshot) => {
+          if (!snapshot.empty) {
+            const data = window.smartBioData.load();
+            const cloudCourses = snapshot.docs.map(doc => {
+              const c = doc.data();
+              return {
+                id: Number(c.id) || Number(doc.id) || c.id,
+                code: c.code,
+                title: c.title,
+                units: Number(c.units) || 3,
+                departmentId: Number(c.departmentId),
+                level: Number(c.level),
+                lecturerId: Number(c.lecturerId) || 1,
+                minAttendancePct: Number(c.minAttendancePct) || 75
+              };
+            });
+            const courseMap = new Map();
+            (data.courses || []).forEach(c => courseMap.set(Number(c.id), c));
+            cloudCourses.forEach(c => courseMap.set(Number(c.id), c));
+            data.courses = Array.from(courseMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+            window.smartBioData.save(data);
+            window.dispatchEvent(new CustomEvent('smartbio:courses_updated', { detail: data.courses }));
+          }
+        }, (error) => {
+          console.warn('Firestore courses listener notice:', error.message);
+        });
+
+      // 6. Real-time Users Listener (SSOT)
+      this.db.collection('users')
+        .onSnapshot((snapshot) => {
+          if (!snapshot.empty) {
+            const data = window.smartBioData.load();
+            const cloudUsers = snapshot.docs.map(doc => {
+              const u = doc.data();
+              return {
+                id: Number(u.id) || Number(doc.id) || u.id,
+                identifier: u.identifier,
+                fullName: u.fullName,
+                email: u.email,
+                role: u.role,
+                departmentId: Number(u.departmentId) || 1,
+                academicLevel: u.academicLevel ? Number(u.academicLevel) : null,
+                avatar: u.avatar || (u.role === 'LECTURER' ? '👨‍🏫' : '🎓'),
+                hasBiometrics: !!u.hasBiometrics,
+                fingerTemplate: u.fingerTemplate || null,
+                credentialId: u.credentialId || null
+              };
+            });
+            const userMap = new Map();
+            (data.users || []).forEach(u => userMap.set(Number(u.id), u));
+            cloudUsers.forEach(u => userMap.set(Number(u.id), u));
+            data.users = Array.from(userMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+            window.smartBioData.save(data);
+            window.dispatchEvent(new CustomEvent('smartbio:users_updated', { detail: data.users }));
+          }
+        }, (error) => {
+          console.warn('Firestore users listener notice:', error.message);
+        });
+
+      // 7. Real-time Course Registrations Listener (SSOT)
+      this.db.collection('courseRegistrations')
+        .onSnapshot((snapshot) => {
+          if (!snapshot.empty) {
+            const data = window.smartBioData.load();
+            const cloudRegs = snapshot.docs.map(doc => {
+              const r = doc.data();
+              return {
+                id: Number(r.id) || Number(doc.id) || r.id,
+                studentId: Number(r.studentId),
+                courseId: Number(r.courseId),
+                sessionId: Number(r.sessionId) || 1
+              };
+            });
+            const regMap = new Map();
+            (data.courseRegistrations || []).forEach(r => regMap.set(`${r.studentId}_${r.courseId}`, r));
+            cloudRegs.forEach(r => regMap.set(`${r.studentId}_${r.courseId}`, r));
+            data.courseRegistrations = Array.from(regMap.values());
+            window.smartBioData.save(data);
+            window.dispatchEvent(new CustomEvent('smartbio:registrations_updated', { detail: data.courseRegistrations }));
+          }
+        }, (error) => {
+          console.warn('Firestore registrations listener notice:', error.message);
         });
     } catch (e) {
       console.warn('Could not attach Firestore listeners:', e);

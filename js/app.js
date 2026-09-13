@@ -588,18 +588,60 @@ class SmartBioApp {
         const userCredential = await window.smartBioCloud.auth.signInWithEmailAndPassword(identifier, password);
         console.log('🔐 Authenticated via Firebase Auth:', userCredential.user.email);
 
-        const users = window.smartBioData.getUsers();
-        authenticatedAccount = users.find(u => u.email.toLowerCase() === identifier.toLowerCase());
+        // Authoritative Firestore Lookup (Single Source of Truth)
+        if (window.smartBioCloud.db) {
+          try {
+            const userSnap = await window.smartBioCloud.db.collection('users')
+              .where('email', '==', identifier.toLowerCase().trim())
+              .get();
 
+            if (!userSnap.empty) {
+              const uDoc = userSnap.docs[0].data();
+              authenticatedAccount = {
+                id: Number(uDoc.id) || Number(userSnap.docs[0].id) || uDoc.id,
+                identifier: uDoc.identifier,
+                fullName: uDoc.fullName,
+                email: uDoc.email,
+                role: uDoc.role,
+                departmentId: Number(uDoc.departmentId) || 1,
+                academicLevel: uDoc.academicLevel ? Number(uDoc.academicLevel) : null,
+                avatar: uDoc.avatar || (uDoc.role === 'LECTURER' ? '👨‍🏫' : (uDoc.role === 'ADMIN' ? '👨‍💼' : '🎓')),
+                hasBiometrics: !!uDoc.hasBiometrics,
+                fingerTemplate: uDoc.fingerTemplate || null,
+                credentialId: uDoc.credentialId || null
+              };
+              console.log('👤 Loaded authoritative profile from Firestore:', authenticatedAccount.fullName, authenticatedAccount.role, 'Dept:', authenticatedAccount.departmentId);
+            }
+          } catch (dbErr) {
+            console.warn('Firestore user fetch notice:', dbErr.message);
+          }
+        }
+
+        // Fallback to local memory if not found in Firestore
         if (!authenticatedAccount) {
+          const users = window.smartBioData.getUsers();
+          authenticatedAccount = users.find(u => u.email.toLowerCase() === identifier.toLowerCase().trim());
+        }
+
+        // Ensure user is merged into local cache if newly retrieved from cloud
+        if (authenticatedAccount) {
+          const data = window.smartBioData.load();
+          const existingIdx = (data.users || []).findIndex(u => Number(u.id) === Number(authenticatedAccount.id));
+          if (existingIdx >= 0) {
+            data.users[existingIdx] = authenticatedAccount;
+          } else {
+            data.users.push(authenticatedAccount);
+          }
+          window.smartBioData.save(data);
+        } else {
           authenticatedAccount = {
             id: Date.now(),
             identifier: userCredential.user.email.split('@')[0].toUpperCase(),
-            fullName: userCredential.user.displayName || userCredential.user.email,
+            fullName: userCredential.user.displayName || userCredential.user.email.split('@')[0],
             email: userCredential.user.email,
-            role: userCredential.user.email.includes('admin') ? 'ADMIN' : (userCredential.user.email.includes('adeyemi') || userCredential.user.email.includes('okoro') ? 'LECTURER' : 'STUDENT'),
+            role: userCredential.user.email.includes('admin') ? 'ADMIN' : 'STUDENT',
             departmentId: 1,
-            academicLevel: 400,
+            academicLevel: 100,
             hasBiometrics: false
           };
         }
@@ -748,12 +790,22 @@ class SmartBioApp {
 
     window.smartBioData.save(data);
 
-    // If Firestore connected, sync user document
+    // If Firestore connected, sync user document and auto-enrolled registrations
     if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
       try {
         await window.smartBioCloud.db.collection('users').doc(String(newUserId)).set(newUser);
+
+        const userRegs = (data.courseRegistrations || []).filter(r => r.studentId === newUserId);
+        if (userRegs.length > 0) {
+          const batch = window.smartBioCloud.db.batch();
+          userRegs.forEach(reg => {
+            const rRef = window.smartBioCloud.db.collection('courseRegistrations').doc(String(reg.id));
+            batch.set(rRef, reg);
+          });
+          await batch.commit();
+        }
       } catch (err) {
-        console.warn('Cloud user sync notice:', err.message);
+        console.warn('Cloud user/reg sync notice:', err.message);
       }
     }
 
@@ -912,6 +964,89 @@ class SmartBioApp {
         } else if (this.currentView === 'ADMIN') {
           this.renderAdminPortal();
         }
+      }
+    });
+
+    // Authoritative Cloud Hydration Listener (SSOT)
+    window.addEventListener('smartbio:cloud_hydrated', () => {
+      console.log('⚡ Received cloud_hydrated event: auto-healing session and views');
+      if (this.authenticatedUser && this.authenticatedUser.email) {
+        const freshUser = window.smartBioData.getUsers().find(u =>
+          u.email.toLowerCase() === this.authenticatedUser.email.toLowerCase() ||
+          Number(u.id) === Number(this.authenticatedUser.id)
+        );
+        if (freshUser) {
+          this.authenticatedUser = freshUser;
+          this.currentUserId = freshUser.id;
+          try {
+            localStorage.setItem('smartbio_logged_in_user', JSON.stringify(freshUser));
+          } catch (err) {}
+          this.switchRole(freshUser.role);
+        }
+      }
+
+      this.populateDepartmentDropdowns();
+      this.populateLectureCourseDropdown();
+      this.populateLoginRoleDropdown();
+      this.updateRegMatricPreview();
+
+      if (this.currentView === 'LECTURER') {
+        this.renderLiveAttendanceStream();
+        this.renderLecturerDefaulterTable();
+      } else if (this.currentView === 'STUDENT') {
+        this.renderStudentPortal();
+      } else if (this.currentView === 'CLASS_REP') {
+        this.renderClassRepPortal();
+      } else if (this.currentView === 'ADMIN') {
+        this.renderAdminPortal();
+      }
+    });
+
+    // Real-time Cloud Entity Listeners (SSOT)
+    window.addEventListener('smartbio:departments_updated', () => {
+      this.populateDepartmentDropdowns();
+      this.updateRegMatricPreview();
+      if (this.currentView === 'ADMIN') this.renderAdminPortal();
+    });
+
+    window.addEventListener('smartbio:courses_updated', () => {
+      this.populateLectureCourseDropdown();
+      if (this.currentView === 'LECTURER') {
+        this.renderLecturerDefaulterTable();
+      } else if (this.currentView === 'STUDENT') {
+        this.renderStudentPortal();
+      } else if (this.currentView === 'ADMIN') {
+        this.renderAdminPortal();
+      }
+    });
+
+    window.addEventListener('smartbio:users_updated', () => {
+      if (this.authenticatedUser && this.authenticatedUser.email) {
+        const freshUser = window.smartBioData.getUsers().find(u =>
+          u.email.toLowerCase() === this.authenticatedUser.email.toLowerCase() ||
+          Number(u.id) === Number(this.authenticatedUser.id)
+        );
+        if (freshUser && (freshUser.role !== this.authenticatedUser.role || freshUser.fullName !== this.authenticatedUser.fullName || freshUser.departmentId !== this.authenticatedUser.departmentId)) {
+          this.authenticatedUser = freshUser;
+          this.currentUserId = freshUser.id;
+          try {
+            localStorage.setItem('smartbio_logged_in_user', JSON.stringify(freshUser));
+          } catch (err) {}
+          this.switchRole(freshUser.role);
+        }
+      }
+      if (this.currentView === 'LECTURER') {
+        this.renderLecturerDefaulterTable();
+      } else if (this.currentView === 'ADMIN') {
+        this.renderAdminPortal();
+      }
+    });
+
+    window.addEventListener('smartbio:registrations_updated', () => {
+      if (this.currentView === 'STUDENT') {
+        this.renderStudentPortal();
+      } else if (this.currentView === 'LECTURER') {
+        this.renderLecturerDefaulterTable();
       }
     });
 
@@ -2853,9 +2988,19 @@ class SmartBioApp {
     }
 
     const newId = Math.max(0, ...depts.map(d => d.id)) + 1;
-    depts.push({ id: newId, code, name, faculty });
+    const newDept = { id: newId, code, name, faculty };
+    depts.push(newDept);
     data.departments = depts;
     window.smartBioData.save(data);
+
+    // Sync to Cloud Firestore as SSOT
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      window.smartBioCloud.db.collection('departments').doc(String(newId)).set({
+        ...newDept,
+        systemUid: `GWU-DEPT-${code}`,
+        syncedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(deptErr => console.warn('Firestore department sync notice:', deptErr.message));
+    }
 
     // Dynamically refresh department dropdowns across all modals & views
     this.populateDepartmentDropdowns();
@@ -2882,6 +3027,10 @@ class SmartBioApp {
 
     data.departments = data.departments.filter(d => d.id !== deptId);
     window.smartBioData.save(data);
+
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      window.smartBioCloud.db.collection('departments').doc(String(deptId)).delete().catch(() => {});
+    }
     this.populateDepartmentDropdowns();
     this.updateRegMatricPreview();
     this.renderAdminDepartments(data);
@@ -2993,10 +3142,21 @@ class SmartBioApp {
 
     window.smartBioData.save(data);
 
-    // Cloud Firestore sync if connected
+    // Cloud Firestore sync if connected (SSOT)
     if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
       try {
         await window.smartBioCloud.db.collection('courses').doc(String(nextCourseId)).set(newCourse);
+
+        // Sync generated courseRegistrations to Firestore
+        const newRegs = (data.courseRegistrations || []).filter(r => r.courseId === nextCourseId);
+        if (newRegs.length > 0) {
+          const batch = window.smartBioCloud.db.batch();
+          newRegs.forEach(reg => {
+            const rRef = window.smartBioCloud.db.collection('courseRegistrations').doc(String(reg.id));
+            batch.set(rRef, reg);
+          });
+          await batch.commit();
+        }
       } catch (err) {
         console.warn('Cloud course sync notice:', err.message);
       }
@@ -3281,7 +3441,7 @@ class SmartBioApp {
 
     if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
       try {
-        await window.smartBioCloud.db.collection('courses').doc(String(courseId)).update(data.courses[courseIdx]);
+        await window.smartBioCloud.db.collection('courses').doc(String(courseId)).set(data.courses[courseIdx], { merge: true });
       } catch (err) {}
     }
 
@@ -3351,6 +3511,18 @@ class SmartBioApp {
     });
 
     window.smartBioData.save(data);
+
+    // Sync to Cloud Firestore (SSOT)
+    if (window.smartBioCloud.isConnected && window.smartBioCloud.db) {
+      window.smartBioCloud.db.collection('departments').doc(String(deptId)).set({
+        id: deptId,
+        code,
+        name,
+        faculty,
+        systemUid: `GWU-DEPT-${code}`,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true }).catch(deptErr => console.warn('Firestore department update notice:', deptErr.message));
+    }
     this.populateDepartmentDropdowns();
     this.updateRegMatricPreview();
     this.closeEditDeptModal();
