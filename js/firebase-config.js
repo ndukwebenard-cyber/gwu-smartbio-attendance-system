@@ -266,6 +266,63 @@ class CloudSyncEngine {
 
       data.courseRegistrations = Array.from(regMap.values());
 
+      // 5. Fetch Lecture Sessions from Cloud
+      try {
+        const sessionSnap = await this.db.collection('lecture_sessions').get();
+        if (!sessionSnap.empty) {
+          const cloudSessions = [];
+          sessionSnap.docs.forEach(doc => {
+            if (doc.id === 'active_session') return; // Skip active_session pointer
+            const s = doc.data();
+            cloudSessions.push({
+              id: Number(s.id) || Number(doc.id) || s.id,
+              courseId: Number(s.courseId),
+              lecturerId: Number(s.lecturerId),
+              lecturerName: s.lecturerName || 'Faculty Member',
+              topic: s.topic || 'Class Session',
+              venue: s.venue || 'Classroom',
+              startTime: s.startTime || '09:00 AM',
+              timestamp: s.timestamp || (s.endedAt ? new Date().toLocaleDateString() : 'Today, 09:00 AM'),
+              status: s.status || 'CONCLUDED'
+            });
+          });
+          const sessMap = new Map();
+          (data.lectureSessions || []).forEach(s => sessMap.set(String(s.id), s));
+          cloudSessions.forEach(s => sessMap.set(String(s.id), s));
+          data.lectureSessions = Array.from(sessMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+        }
+      } catch (sessErr) {
+        console.warn('Lecture sessions hydration notice:', sessErr.message);
+      }
+
+      // 6. Fetch Attendance Records from Cloud
+      try {
+        const attSnap = await this.db.collection('attendance_records').get();
+        if (!attSnap.empty) {
+          const cloudAtt = [];
+          attSnap.docs.forEach(doc => {
+            const a = doc.data();
+            cloudAtt.push({
+              id: Number(a.id) || Number(doc.id) || a.id,
+              sessionId: Number(a.sessionId) || a.sessionId,
+              courseId: Number(a.courseId),
+              studentId: Number(a.studentId) || a.studentId,
+              method: a.method || 'OPTICAL_FINGERPRINT',
+              confidence: Number(a.confidence) || 98.4,
+              status: a.status || 'PRESENT',
+              timestamp: a.timestamp || new Date().toISOString(),
+              time: a.time || '09:00 AM'
+            });
+          });
+          const attMap = new Map();
+          (data.attendanceRecords || []).forEach(a => attMap.set(`${a.sessionId}_${a.studentId}`, a));
+          cloudAtt.forEach(a => attMap.set(`${a.sessionId}_${a.studentId}`, a));
+          data.attendanceRecords = Array.from(attMap.values()).sort((a, b) => Number(a.id) - Number(b.id));
+        }
+      } catch (attErr) {
+        console.warn('Attendance records hydration notice:', attErr.message);
+      }
+
       // Save to local cache
       window.smartBioData.save(data);
 

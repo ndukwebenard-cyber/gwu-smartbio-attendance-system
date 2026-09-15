@@ -773,7 +773,10 @@ class SmartBioApp {
     // 3. Auto-Enroll in departmental cohort courses
     let enrolledCoursesCount = 0;
     if (role === 'STUDENT' || role === 'CLASS_REP') {
-      const matchingCourses = (data.courses || []).filter(c => c.departmentId === departmentId && (c.level === targetLevel || !targetLevel));
+      const matchingCourses = (data.courses || []).filter(c => 
+        Number(c.departmentId) === Number(departmentId) && 
+        (!targetLevel || Number(c.level) === Number(targetLevel))
+      );
       let maxRegId = (data.courseRegistrations && data.courseRegistrations.length) ? Math.max(...data.courseRegistrations.map(r => r.id)) : 0;
       
       matchingCourses.forEach(c => {
@@ -1071,6 +1074,9 @@ class SmartBioApp {
 
       if (sessionData && sessionData.status === 'ACTIVE') {
         this.activeLectureSession = sessionData;
+        if (window.smartBioData) {
+          window.smartBioData.addLectureSession(sessionData);
+        }
         try {
           localStorage.setItem('smartbio_active_session', JSON.stringify(sessionData));
         } catch (err) {}
@@ -1079,10 +1085,15 @@ class SmartBioApp {
         // If current role is student or class rep, notify with gentle alert
         if (this.currentView === 'STUDENT' || this.currentView === 'CLASS_REP') {
           window.smartBioAudio.playSuccessChime();
-          const course = (window.smartBioData.load().courses || []).find(c => c.id === sessionData.courseId) || { code: 'Course' };
+          const course = (window.smartBioData.load().courses || []).find(c => Number(c.id) === Number(sessionData.courseId)) || { code: 'Course' };
           this.showToast(`🔔 Live Lecture Alert: ${course.code} is now in session at ${sessionData.venue}!`, 'info');
         }
       } else if (isConcluded) {
+        if (sessionData && sessionData.id && window.smartBioData) {
+          window.smartBioData.updateLectureSession(sessionData.id, { status: 'CONCLUDED' });
+        } else if (this.activeLectureSession && this.activeLectureSession.id && window.smartBioData) {
+          window.smartBioData.updateLectureSession(this.activeLectureSession.id, { status: 'CONCLUDED' });
+        }
         this.activeLectureSession = null;
         try {
           localStorage.removeItem('smartbio_active_session');
@@ -1973,7 +1984,7 @@ class SmartBioApp {
 
     let sessions = (data.lectureSessions || []).filter(s => registeredCourseIds.has(Number(s.courseId)));
     if (selectedCourseVal && selectedCourseVal !== 'ALL') {
-      sessions = sessions.filter(s => s.courseId === Number(selectedCourseVal));
+      sessions = sessions.filter(s => Number(s.courseId) === Number(selectedCourseVal));
     }
 
     if (sessions.length === 0) {
@@ -1989,9 +2000,12 @@ class SmartBioApp {
 
     let html = '';
     sessions.forEach(session => {
-      const record = (data.attendanceRecords || []).find(a => a.sessionId === session.id && a.studentId === Number(studentId));
+      const record = (data.attendanceRecords || []).find(a => 
+        Number(a.sessionId) === Number(session.id) && 
+        Number(a.studentId) === Number(studentId)
+      );
       const isPresent = record && (record.status === 'PRESENT' || record.status === 'FLAGGED_RESOLVED');
-      const course = (data.courses || []).find(c => c.id === session.courseId) || { code: 'CSC 401' };
+      const course = (data.courses || []).find(c => Number(c.id) === Number(session.courseId)) || { code: 'CSC 401' };
 
       html += `
         <tr>
@@ -3128,15 +3142,15 @@ class SmartBioApp {
     // Auto-enroll all existing students in this department and level cohort
     const cohortStudents = (data.users || []).filter(u => 
       (u.role === 'STUDENT' || u.role === 'CLASS_REP') && 
-      u.departmentId === departmentId && 
-      Number(u.academicLevel) === level
+      Number(u.departmentId) === Number(departmentId) && 
+      Number(u.academicLevel) === Number(level)
     );
 
     let maxRegId = (data.courseRegistrations && data.courseRegistrations.length) ? Math.max(...data.courseRegistrations.map(r => r.id)) : 0;
     let autoEnrolledCount = 0;
 
     cohortStudents.forEach(st => {
-      const alreadyRegistered = data.courseRegistrations.some(r => r.studentId === st.id && r.courseId === nextCourseId);
+      const alreadyRegistered = data.courseRegistrations.some(r => Number(r.studentId) === Number(st.id) && Number(r.courseId) === Number(nextCourseId));
       if (!alreadyRegistered) {
         maxRegId++;
         data.courseRegistrations.push({
