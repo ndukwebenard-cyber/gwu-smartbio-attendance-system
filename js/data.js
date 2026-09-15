@@ -340,7 +340,9 @@ class DataStore {
       return null;
     }
 
-    record.id = Date.now();
+    record.id = record.id || Date.now();
+    record.timestamp = record.timestamp || new Date().toISOString();
+    record.time = record.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     this.data.attendanceRecords.push(record);
     this.save();
     return record;

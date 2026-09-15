@@ -1112,6 +1112,25 @@ class SmartBioApp {
     // If lecturer is viewing live radar, handle real-time check-in stream
     const tableBody = document.getElementById('liveRadarTableBody');
     if (tableBody) {
+      // If there is an active session, ensure this incoming record belongs to THIS live session
+      if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
+        const activeSessId = Number(this.activeLectureSession.id);
+        if (Number(record.sessionId) !== activeSessId) {
+          // Record belongs to a past or different session, do not pollute live radar
+          return;
+        }
+
+        const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+        if (isLecturer && this.currentUserId && Number(this.activeLectureSession.lecturerId) !== Number(this.currentUserId)) {
+          return;
+        }
+      }
+
+      // Only verified attendees appear on the live radar stream
+      if (record.status !== 'PRESENT' && record.status !== 'FLAGGED_RESOLVED') {
+        return;
+      }
+
       // Clear zero-state placeholder if currently rendered
       const zeroState = tableBody.querySelector('.live-radar-zero-state');
       if (zeroState) {
@@ -1119,18 +1138,19 @@ class SmartBioApp {
       }
 
       // Check if row already rendered for this student
-      const existingRow = Array.from(tableBody.querySelectorAll('tr')).find(tr => tr.dataset.studentId === String(record.studentId));
+      const existingRow = Array.from(tableBody.querySelectorAll('tr')).find(tr => String(tr.dataset.studentId) === String(record.studentId));
       if (!existingRow) {
         const student = window.smartBioData.getUserById(record.studentId);
         const tr = document.createElement('tr');
         tr.dataset.studentId = String(record.studentId);
         tr.style.animation = 'fade-in 0.4s ease forwards';
+        const scanTime = record.timestamp ? new Date(record.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (record.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         tr.innerHTML = `
           <td><strong class="font-mono">${student ? student.identifier : 'N/A'}</strong></td>
           <td>${student ? student.fullName : 'Student'}</td>
           <td><span class="badge ${record.status === 'PRESENT' ? 'badge-eligible' : 'badge-flagged'}">${record.status}</span></td>
-          <td>${record.confidence}%</td>
-          <td>${record.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+          <td>${record.confidence || 98.4}%</td>
+          <td>${scanTime}</td>
         `;
         tableBody.insertBefore(tr, tableBody.firstChild);
       }
@@ -1178,7 +1198,7 @@ class SmartBioApp {
     
     // COURSE OWNERSHIP VALIDATION (NDPA Section 26)
     const course = window.smartBioData.getCourseById(courseId);
-    if (this.authenticatedUser.role === 'LECTURER' && course && course.lecturerId !== this.authenticatedUser.id) {
+    if (this.authenticatedUser.role === 'LECTURER' && course && Number(course.lecturerId) !== Number(this.authenticatedUser.id)) {
       window.smartBioAudio.playErrorBuzz();
       this.showToast(`⛔ Course Ownership Violation: You are not assigned as the course lecturer for ${course.code}.`, 'error');
       return;
@@ -1419,7 +1439,7 @@ class SmartBioApp {
 
       // 1. ACTIVE SESSION MODE: Strictly show verified attendees for THIS live session
       const activeSessId = Number(this.activeLectureSession.id);
-      const activeCourse = (data.courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
+      const activeCourse = (data.courses || []).find(c => Number(c.id) === Number(this.activeLectureSession.courseId)) || { code: 'Course' };
       const records = (data.attendanceRecords || [])
         .filter(a => Number(a.sessionId) === activeSessId && (a.status === 'PRESENT' || a.status === 'FLAGGED_RESOLVED'))
         .slice()
@@ -1642,7 +1662,7 @@ class SmartBioApp {
     }
     const selectedCourseId = select && select.value ? Number(select.value) : (defaultCourse ? defaultCourse.id : 1);
 
-    const course = (data.courses || []).find(c => c.id === selectedCourseId) || { code: 'CSC 401', minAttendancePct: 75 };
+    const course = (data.courses || []).find(c => Number(c.id) === Number(selectedCourseId)) || { code: 'CSC 401', minAttendancePct: 75 };
     const courseTitleEl = document.getElementById('lecturerDefaulterCourseCode');
     if (courseTitleEl) courseTitleEl.innerText = course.code;
 
@@ -1654,7 +1674,7 @@ class SmartBioApp {
     enrolledStudents.forEach(student => {
       const comp = window.smartBioCompliance.calculateStudentCompliance(student.id);
       if (!comp || !comp.courseStats || comp.courseStats.length === 0) return;
-      const stat = comp.courseStats.find(cs => cs.courseId === selectedCourseId);
+      const stat = comp.courseStats.find(cs => Number(cs.courseId) === Number(selectedCourseId));
       if (!stat) return;
 
       if (stat.totalHeld > totalConducted) totalConducted = stat.totalHeld;
@@ -2495,6 +2515,7 @@ class SmartBioApp {
               method: 'WEBAUTHN_BIOMETRIC',
               confidence: 99.8,
               status: 'PRESENT',
+              timestamp: new Date().toISOString(),
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
           }
@@ -2546,7 +2567,7 @@ class SmartBioApp {
     // ENROLLMENT VALIDATION (Section 27)
     if (student) {
       const data = window.smartBioData.load();
-      const isEnrolled = (data.courseRegistrations || []).some(r => r.studentId === student.id && r.courseId === activeSess.courseId);
+      const isEnrolled = (data.courseRegistrations || []).some(r => Number(r.studentId) === Number(student.id) && Number(r.courseId) === Number(activeSess.courseId));
       if (!isEnrolled) {
         window.smartBioAudio.playErrorBuzz();
         this.updateScannerHUD('COURSE ENROLLMENT VIOLATION', `${student.fullName} is NOT registered for Course #${activeSess.courseId}.`);
@@ -2577,7 +2598,8 @@ class SmartBioApp {
         method: result.method,
         confidence: Number(result.confidence),
         status: 'PRESENT',
-        time: result.timestamp
+        timestamp: new Date().toISOString(),
+        time: result.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
     } else if (result.status === 'FLAGGED') {
       this.updateScannerHUD('FLAGGED EXCEPTION ROUTED', `${result.student.fullName} flagged: ${result.flagReason}. Routed to Lecturer.`);

@@ -31,20 +31,20 @@ class NUCComplianceEngine {
     const student = window.smartBioData.getUserById(studentId);
     if (!student) return null;
 
-    const registrations = (data.courseRegistrations || []).filter(r => r.studentId === Number(studentId));
+    const registrations = (data.courseRegistrations || []).filter(r => Number(r.studentId) === Number(studentId));
     const courseStats = [];
 
     registrations.forEach(reg => {
       const course = window.smartBioData.getCourseById(reg.courseId);
       if (!course) return;
 
-      const sessions = (data.lectureSessions || []).filter(s => s.courseId === course.id && (s.status === 'CONCLUDED' || s.status === 'ACTIVE'));
+      const sessions = (data.lectureSessions || []).filter(s => Number(s.courseId) === Number(course.id) && (s.status === 'CONCLUDED' || s.status === 'ACTIVE'));
       const totalHeld = sessions.length;
 
       // Find valid attended sessions (PRESENT or FLAGGED_RESOLVED)
       const attended = (data.attendanceRecords || []).filter(a => 
-        sessions.some(s => s.id === a.sessionId) && 
-        a.studentId === Number(studentId) && 
+        sessions.some(s => Number(s.id) === Number(a.sessionId)) && 
+        Number(a.studentId) === Number(studentId) && 
         (a.status === 'PRESENT' || a.status === 'FLAGGED_RESOLVED')
       ).length;
 

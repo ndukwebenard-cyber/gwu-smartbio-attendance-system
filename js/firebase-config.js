@@ -22,6 +22,7 @@ class CloudSyncEngine {
     this.db = null;
     this.auth = null;
     this.listeners = [];
+    this.recentLocalAttendance = new Set();
   }
 
   loadConfig() {
@@ -381,13 +382,34 @@ class CloudSyncEngine {
 
     try {
       // 1. Real-time Attendance Stream
+      let initialAttendanceLoaded = false;
       this.db.collection('attendance_records')
         .orderBy('timestamp', 'desc')
         .limit(30)
         .onSnapshot((snapshot) => {
+          if (!initialAttendanceLoaded) {
+            // Seed any records into local DataStore silently on initial connect
+            snapshot.docs.forEach((doc) => {
+              const record = doc.data();
+              if (window.smartBioData) {
+                window.smartBioData.addAttendance(record);
+              }
+            });
+            initialAttendanceLoaded = true;
+            return;
+          }
+
           snapshot.docChanges().forEach((change) => {
             if (change.type === 'added') {
               const record = change.doc.data();
+              if (window.smartBioData) {
+                window.smartBioData.addAttendance(record);
+              }
+              const recId = String(record.id || '');
+              if (recId && this.recentLocalAttendance && this.recentLocalAttendance.has(recId)) {
+                // Already dispatched and rendered locally, skip duplicate event
+                return;
+              }
               window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: record }));
             }
           });
@@ -578,26 +600,42 @@ class CloudSyncEngine {
 
   // Push new attendance record to Cloud + Local Store
   async recordAttendance(record) {
+    // Ensure timestamp & formatted time exist
+    record.timestamp = record.timestamp || new Date().toISOString();
+    record.time = record.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     // 1. Save to Local Store first (idempotent check inside addAttendance)
     const saved = window.smartBioData.addAttendance(record);
     if (!saved) {
       return null; // duplicate check-in prevented
     }
 
-    // 2. Broadcast via Firestore Cloud
+    const recId = String(saved.id || record.id || Date.now());
+    if (this.recentLocalAttendance) {
+      this.recentLocalAttendance.add(recId);
+      if (this.recentLocalAttendance.size > 100) {
+        const firstKey = this.recentLocalAttendance.values().next().value;
+        this.recentLocalAttendance.delete(firstKey);
+      }
+    }
+
+    // 2. Broadcast via Firestore Cloud with explicit timestamp and doc ID
     if (this.isConnected && this.db) {
       try {
-        await this.db.collection('attendance_records').add({
+        await this.db.collection('attendance_records').doc(recId).set({
           ...record,
+          id: saved.id || record.id,
+          timestamp: saved.timestamp || record.timestamp,
+          time: saved.time || record.time,
           serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        }, { merge: true });
       } catch (e) {
         console.warn('Cloud sync skipped (using local):', e.message);
       }
     }
 
     // 3. Emit event locally
-    window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: record }));
+    window.dispatchEvent(new CustomEvent('smartbio:attendance_stream', { detail: saved || record }));
     return saved;
   }
 
