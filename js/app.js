@@ -1064,6 +1064,22 @@ class SmartBioApp {
       if (this.authenticatedUser && this.authenticatedUser.role === 'ADMIN') this.renderAdminPortal();
     });
 
+    // When security incidents (proxy impersonation / geofence breaches) occur
+    window.addEventListener('smartbio:security_incident', (e) => {
+      this.renderSecurityIncidentQueue();
+      if (this.authenticatedUser && this.authenticatedUser.role === 'LECTURER') {
+        const incidents = e.detail || [];
+        const hasUnresolved = incidents.some(i => i.status === 'UNRESOLVED');
+        if (hasUnresolved) {
+          window.smartBioAudio.playSecurityAlarm();
+          this.showToast('🚨 MALICIOUS ATTENDANCE ALERT: Security breach intercepted on live session!', 'error');
+        }
+      }
+      if (this.currentView === 'STUDENT') {
+        this.renderStudentPortal();
+      }
+    });
+
     // When active lecture session state changes in Firestore Cloud or local bus
     window.addEventListener('smartbio:session_update', (e) => {
       const detail = e.detail;
@@ -1425,6 +1441,7 @@ class SmartBioApp {
     this.populateDefaulterCourseDropdown();
     this.renderLiveAttendanceStream();
     this.renderFlaggedQueue();
+    this.renderSecurityIncidentQueue();
     this.renderLecturerDefaulterTable();
   }
 
@@ -1657,6 +1674,105 @@ class SmartBioApp {
     // Refresh views
     this.renderFlaggedQueue();
     this.renderLecturerDefaulterTable();
+  }
+
+  // Render Real-Time Malicious Security Incident Radar on Lecturer Portal
+  renderSecurityIncidentQueue() {
+    const container = document.getElementById('securityIncidentContainer');
+    const countBadge = document.getElementById('securityIncidentCountBadge');
+    if (!container) return;
+
+    let incidents = window.smartBioData.getSecurityIncidents() || [];
+    const data = window.smartBioData.load();
+
+    // Scope check: if logged in as a LECTURER, only show incidents belonging to this lecturer's assigned courses
+    const isLecturer = this.authenticatedUser && this.authenticatedUser.role === 'LECTURER';
+    if (isLecturer && this.currentUserId) {
+      const lecturerCourses = new Set((data.courses || []).filter(c => Number(c.lecturerId) === Number(this.currentUserId)).map(c => c.id));
+      incidents = incidents.filter(inc => {
+        const session = (data.lectureSessions || []).find(s => s.id === inc.sessionId);
+        if (session && lecturerCourses.has(session.courseId)) return true;
+        if (inc.courseId && lecturerCourses.has(inc.courseId)) return true;
+        return false;
+      });
+    }
+
+    const unresolved = incidents.filter(i => i.status === 'UNRESOLVED');
+    if (countBadge) {
+      countBadge.innerText = `${unresolved.length} Security Alert${unresolved.length === 1 ? '' : 's'}`;
+      countBadge.className = unresolved.length > 0 ? 'badge badge-ineligible' : 'badge badge-eligible';
+    }
+
+    if (unresolved.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 18px 12px; color: var(--text-muted);">
+          <div style="font-size: 24px; margin-bottom: 4px;">🛡️</div>
+          <p style="font-size: 0.85rem; margin-bottom: 0;">No active proxy impersonation or geofence breaches detected. Classroom perimeter is secure.</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+    unresolved.forEach(inc => {
+      const student = window.smartBioData.getUserById(inc.studentId) || { fullName: inc.studentName || 'Student', identifier: inc.studentIdentifier || 'N/A' };
+      const isProxy = inc.incidentType === 'BIOMETRIC_PROXY_IMPERSONATION';
+      const badgeLabel = isProxy ? '🚨 PROXY IMPERSONATION' : '📍 REMOTE GEOFENCE BREACH';
+      const timeStr = inc.time || (inc.timestamp ? new Date(inc.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now');
+
+      html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(239, 68, 68, 0.1); border: 1.5px solid rgba(239, 68, 68, 0.35); border-radius: 8px; padding: 12px 14px; gap: 12px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="font-size: 1.8rem; background: rgba(239, 68, 68, 0.2); width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+              ${isProxy ? '👥' : '🏠'}
+            </div>
+            <div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 3px;">
+                <span class="badge badge-ineligible" style="font-size: 0.7rem; font-weight: bold;">${badgeLabel}</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${timeStr}</span>
+              </div>
+              <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0 0 2px 0;">
+                ${student.fullName} <span style="font-family: monospace; color: var(--text-muted);">(${student.identifier})</span>
+              </h4>
+              <p style="font-size: 0.78rem; color: #fca5a5; margin-bottom: 0;">
+                ${inc.details || 'Suspicious check-in attempt intercepted.'}
+                ${inc.confidence !== undefined ? ` (Captured Match: ${inc.confidence}%)` : ''}
+                ${inc.distanceMeters ? ` (~${inc.distanceMeters}m outside venue)` : ''}
+              </p>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-danger font-bold" onclick="smartBioApp.resolveSecurityIncidentInModal(${inc.id}, 'REFERRED_DISCIPLINARY')">
+              ⚖️ Flag Disciplinary
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="smartBioApp.resolveSecurityIncidentInModal(${inc.id}, 'RESOLVED_FALSE_POSITIVE')">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  resolveSecurityIncidentInModal(incidentId, action) {
+    if (!this.authenticatedUser || (this.authenticatedUser.role !== 'LECTURER' && this.authenticatedUser.role !== 'ADMIN')) {
+      window.smartBioAudio.playErrorBuzz();
+      this.showToast('⛔ Access Denied: Only Course Lecturers and Administrators can resolve security incidents.', 'error');
+      return;
+    }
+
+    const note = action === 'REFERRED_DISCIPLINARY'
+      ? 'Referred to Departmental Disciplinary Committee for examination and biometric malpractice inquiry.'
+      : 'Dismissed by Course Lecturer after physical identity confirmation.';
+
+    window.smartBioCloud.resolveSecurityIncident(incidentId, this.currentUserId, action, note);
+    this.showToast(action === 'REFERRED_DISCIPLINARY' ? 'Incident flagged! Disciplinary hold attached to student docket.' : 'Security incident dismissed.', action === 'REFERRED_DISCIPLINARY' ? 'warning' : 'info');
+
+    this.renderSecurityIncidentQueue();
+    if (this.currentView === 'LECTURER') this.renderLecturerPortal();
+    if (this.currentView === 'STUDENT') this.renderStudentPortal();
   }
 
   renderLecturerDefaulterTable() {
@@ -2517,8 +2633,45 @@ class SmartBioApp {
           return;
         }
 
+        // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
+        const venueName = activeSess.venue || 'ICT Hall A';
+        const proximity = await window.smartBioGeofence.verifyProximity(venueName);
+        if (!proximity.success) {
+          window.smartBioAudio.playSecurityAlarm();
+          this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Remote check-in VOIDED.`, 'error');
+          window.smartBioCloud.recordSecurityIncident({
+            sessionId: activeSess.id,
+            courseId: activeSess.courseId,
+            studentId: user.id,
+            studentName: user.fullName,
+            studentIdentifier: user.identifier,
+            incidentType: 'REMOTE_GEOFENCE_BREACH',
+            details: `Attempted WebAuthn remote check-in from outside venue (${proximity.distanceMeters}m away from ${venueName}).`,
+            distanceMeters: proximity.distanceMeters,
+            status: 'UNRESOLVED'
+          });
+          return;
+        }
+
         try {
           const res = await window.smartBioBiometric.authenticateWithWebAuthn(user);
+          if (res && res.status === 'VOID_PROXY_MISMATCH') {
+            window.smartBioAudio.playSecurityAlarm();
+            this.showToast(`🚨 Passkey Mismatch: Biometric credential is not bound to ${user.fullName}. Attendance VOID.`, 'error');
+            window.smartBioCloud.recordSecurityIncident({
+              sessionId: activeSess.id,
+              courseId: activeSess.courseId,
+              studentId: user.id,
+              studentName: user.fullName,
+              studentIdentifier: user.identifier,
+              incidentType: 'BIOMETRIC_PROXY_IMPERSONATION',
+              details: res.incidentDetails || 'Hardware passkey returned an unrecognized credential not bound to student account.',
+              confidence: 0,
+              status: 'UNRESOLVED'
+            });
+            return;
+          }
+
           if (res && res.success) {
             window.smartBioAudio.playSuccessChime();
             this.showToast('✅ WebAuthn Hardware Passkey Verified Successfully!', 'success');
@@ -2545,12 +2698,47 @@ class SmartBioApp {
   }
 
   renderScannerTerminal() {
+    const venueLabel = document.getElementById('geofenceVenueLabel');
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
       const course = (window.smartBioData.load().courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
-      this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${this.activeLectureSession.venue || 'Hall'}) — Optical Sensor Ready`);
+      const venue = this.activeLectureSession.venue || 'ICT Hall A';
+      this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${venue}) — Optical Sensor Ready`);
+      if (venueLabel) venueLabel.innerText = `${venue} (50m Radius)`;
     } else {
       this.updateScannerHUD('SIMULATION READY', 'Optical Scanner Ready — Waiting for active lecture session...');
+      if (venueLabel) venueLabel.innerText = 'ICT Hall A (50m Radius)';
     }
+  }
+
+  setGeofenceMode(mode) {
+    if (!window.smartBioGeofence) return;
+    window.smartBioGeofence.setSimulationMode(mode);
+
+    // Update button states
+    const btnInClass = document.getElementById('btnGeoInClass');
+    const btnHostel = document.getElementById('btnGeoHostel');
+    const btnReal = document.getElementById('btnGeoReal');
+    const badge = document.getElementById('geofenceStatusBadge');
+
+    if (btnInClass) btnInClass.classList.toggle('active', mode === 'SIM_IN_CLASS');
+    if (btnHostel) btnHostel.classList.toggle('active', mode === 'SIM_HOSTEL_REMOTE');
+    if (btnReal) btnReal.classList.toggle('active', mode === 'DEVICE_GPS');
+
+    if (badge) {
+      if (mode === 'SIM_IN_CLASS') {
+        badge.className = 'badge badge-eligible font-mono';
+        badge.innerText = '🟢 IN-CLASS (5m)';
+      } else if (mode === 'SIM_HOSTEL_REMOTE') {
+        badge.className = 'badge badge-ineligible font-mono';
+        badge.innerText = '🔴 HOSTEL REMOTE (1.2km)';
+      } else {
+        badge.className = 'badge badge-at-risk font-mono';
+        badge.innerText = '🛰️ LIVE DEVICE GPS';
+      }
+    }
+
+    const label = mode === 'SIM_IN_CLASS' ? 'Classroom Venue (~5m inside hall)' : (mode === 'SIM_HOSTEL_REMOTE' ? 'Hostel / Off-Campus (~1.2km away)' : 'Hardware GPS Sensor');
+    this.showToast(`📍 Geofence test position set to: ${label}`, 'info');
   }
 
   async runTerminalScan(mode = 'NORMAL', studentId = null) {
@@ -2590,10 +2778,33 @@ class SmartBioApp {
       }
     }
 
-    this.updateScannerHUD('SCANNING MINUTIAE...', 'Processing optical ridge points (Simulation Mode)...');
-    
     const currentSessionId = activeSess.id;
     const currentCourseId = activeSess.courseId;
+
+    // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
+    const venueName = activeSess.venue || 'ICT Hall A';
+    const proximity = await window.smartBioGeofence.verifyProximity(venueName);
+    if (!proximity.success) {
+      window.smartBioAudio.playSecurityAlarm();
+      this.updateScannerHUD('LOCATION BREACH VOID', `Remote check-in blocked: ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`);
+      this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`, 'error');
+
+      // Dispatch Malicious Remote Incident to Lecturer
+      window.smartBioCloud.recordSecurityIncident({
+        sessionId: currentSessionId,
+        courseId: currentCourseId,
+        studentId: student ? student.id : null,
+        studentName: student ? student.fullName : 'Account Holder',
+        studentIdentifier: student ? student.identifier : 'N/A',
+        incidentType: 'REMOTE_GEOFENCE_BREACH',
+        details: `Student account attempted attendance from outside classroom perimeter (${proximity.distanceMeters}m from ${venueName}).`,
+        distanceMeters: proximity.distanceMeters,
+        status: 'UNRESOLVED'
+      });
+      return;
+    }
+
+    this.updateScannerHUD('SCANNING MINUTIAE...', 'Processing optical ridge points (Simulation Mode)...');
 
     const result = await window.smartBioBiometric.simulateOpticalScan({
       studentId: student ? student.id : 4,
@@ -2614,6 +2825,22 @@ class SmartBioApp {
         status: 'PRESENT',
         timestamp: new Date().toISOString(),
         time: result.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+    } else if (result.status === 'VOID_PROXY_MISMATCH') {
+      this.updateScannerHUD('PROXY MISMATCH VOID', `Minutiae mismatch for ${result.student.fullName}. Attendance VOID.`);
+      this.showToast(`🚨 PROXY ATTEMPT DETECTED: Scanned finger does not match enrolled profile for ${result.student.fullName}. Attendance VOID.`, 'error');
+
+      // Dispatch Malicious Proxy Security Incident to Lecturer
+      window.smartBioCloud.recordSecurityIncident({
+        sessionId: currentSessionId,
+        courseId: currentCourseId,
+        studentId: result.student.id,
+        studentName: result.student.fullName,
+        studentIdentifier: result.student.identifier,
+        incidentType: 'BIOMETRIC_PROXY_IMPERSONATION',
+        details: result.incidentDetails || `Scanned fingerprint minutiae mismatch (${result.confidence}% match). Proxy attempt suspected.`,
+        confidence: Number(result.confidence),
+        status: 'UNRESOLVED'
       });
     } else if (result.status === 'FLAGGED') {
       this.updateScannerHUD('FLAGGED EXCEPTION ROUTED', `${result.student.fullName} flagged: ${result.flagReason}. Routed to Lecturer.`);
@@ -2890,6 +3117,15 @@ class SmartBioApp {
   async handleEnrollBiometrics(mode = 'WEBAUTHN') {
     const currentUser = window.smartBioData.getUserById(this.currentUserId);
     if (!currentUser) return;
+
+    // AUTHORITATIVE ENROLLMENT LOCK (Anti-Tamper & Separation of Duties - NDPA & ISO/IEC 19795)
+    // Students/Reps cannot overwrite already-enrolled biometrics from personal profile.
+    const isStudentOrRep = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP');
+    if (isStudentOrRep && currentUser.hasBiometrics) {
+      window.smartBioAudio.playErrorBuzz();
+      this.showToast('⛔ Security Policy: Enrolled biometrics are locked to prevent proxy swapping and identity tampering. Contact the Course Lecturer or Faculty Officer for supervised re-enrollment.', 'error');
+      return;
+    }
 
     if (mode === 'WEBAUTHN') {
       this.showToast('Triggering WebAuthn device passkey enrollment (Fingerprint / Touch ID / Windows Hello)...', 'info');

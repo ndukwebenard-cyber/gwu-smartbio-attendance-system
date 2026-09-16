@@ -138,6 +138,25 @@
         </div>
       </div>
 
+      <!-- Malicious Activity & Anti-Proxy Incident Radar (Literature Gap Feature) -->
+      <div class="glass-card" id="securityIncidentCard" style="margin-bottom: 20px; border-left: 4px solid var(--danger); background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(15, 23, 42, 0.4));">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.4rem;">🚨</span>
+            <div>
+              <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 2px;">Real-Time Security &amp; Malicious Activity Radar</h3>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0;">
+                Anti-Proxy Impersonation &amp; Off-Campus Geofence Breach Detection (NDPA 2023 &amp; NUC Compliant)
+              </p>
+            </div>
+          </div>
+          <span class="badge badge-ineligible" id="securityIncidentCountBadge">0 Security Alerts</span>
+        </div>
+        <div id="securityIncidentContainer">
+          <!-- Dynamic Malicious Alert Cards or Zero State inserted via JS -->
+        </div>
+      </div>
+
       <!-- Split Grid: Live Attendance Stream & Flagged Queue -->
       <div class="dashboard-split-grid">
         <!-- Live Incoming Radar Table -->
@@ -668,6 +687,28 @@
 
         <!-- Hardware Controls & Authentic Scanner Panel -->
         <div class="scanner-controls-panel">
+          <!-- Classroom Proximity & Geofence Controller (NDPA Sec. 24 Compliance) -->
+          <div class="glass-card" style="margin-bottom: 16px; border-left: 3px solid var(--primary);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0;">📍 Classroom Venue Geofence (NDPA 2023)</h3>
+              <span class="badge badge-eligible font-mono" id="geofenceStatusBadge">🟢 IN-CLASS (5m)</span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px;">
+              Bound to Venue: <strong id="geofenceVenueLabel">ICT Hall A (50m Radius)</strong>. Ephemeral point-in-time calculation ensures off-campus attendance is strictly voided.
+            </p>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-sm btn-secondary active font-bold" id="btnGeoInClass" onclick="smartBioApp.setGeofenceMode('SIM_IN_CLASS')">
+                🏫 Inside Hall (5m)
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary font-bold" id="btnGeoHostel" onclick="smartBioApp.setGeofenceMode('SIM_HOSTEL_REMOTE')">
+                🏠 Hostel / Remote (1.2km)
+              </button>
+              <button type="button" class="btn btn-sm btn-secondary font-bold" id="btnGeoReal" onclick="smartBioApp.setGeofenceMode('DEVICE_GPS')">
+                🛰️ Live Device GPS
+              </button>
+            </div>
+          </div>
+
           <!-- WebAuthn Browser Native Biometrics Trigger -->
           <div class="glass-card">
             <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;">🔐 Browser Native WebAuthn API</h3>
@@ -691,6 +732,10 @@
               <button class="btn-sim-test" data-sim-mode="NORMAL" data-student-id="4">
                 <strong>🟢 Normal Scan</strong>
                 <span>Benedict Uche (Match 99%)</span>
+              </button>
+              <button class="btn-sim-test" data-sim-mode="PROXY_MISMATCH" data-student-id="4" style="border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08);">
+                <strong style="color: #ef4444;">🚨 Proxy Scan (Friend Scans)</strong>
+                <span>Accomplice Finger Mismatch (Void + Alert)</span>
               </button>
               <button class="btn-sim-test" data-sim-mode="SWEATY_RIDGE" data-student-id="8">
                 <strong>🟡 Sweaty Finger Scan</strong>
@@ -1655,6 +1700,7 @@
   <!-- Application Scripts -->
   <script src="js/data.js?v=20260913_ssot"></script>
   <script src="js/audio.js?v=20260913_ssot"></script>
+  <script src="js/geofence.js?v=20260916"></script>
   <script src="js/firebase-config.js?v=20260913_ssot"></script>
   <script src="js/biometric.js?v=20260913_ssot"></script>
   <script src="js/compliance.js?v=20260913_ssot"></script>

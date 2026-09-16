@@ -230,7 +230,8 @@ const DEFAULT_SEEDS = {
   auditLogs: [
     { id: 1, actorId: 1, actor: 'Dr. Kola Balogun (ADMIN)', action: 'SYSTEM_INIT', details: 'Initialized 2025/2026 academic structure with NUC 75% rule threshold', time: '2026-02-01 08:00' },
     { id: 2, actorId: 2, actor: 'Dr. Olawale Adeyemi (LECTURER)', action: 'FLAG_OVERRIDE_APPROVED', details: 'Approved flagged attendance for Benedict Uchechukwu (GWU/CSC/22/001) after verifying physical ID card', time: '2026-03-10 09:14' }
-  ]
+  ],
+  securityIncidents: []
 };
 
 class DataStore {
@@ -275,6 +276,7 @@ class DataStore {
   getAttendanceRecords() { return this.data.attendanceRecords; }
   getFlagged() { return this.data.flaggedExceptions; }
   getAuditLogs() { return this.data.auditLogs; }
+  getSecurityIncidents() { return this.data.securityIncidents || []; }
 
   getUserById(id) {
     return this.data.users.find(u => String(u.id) === String(id) || u.id === Number(id));
@@ -406,6 +408,61 @@ class DataStore {
     if (!log.actorId) log.actorId = null;
     this.data.auditLogs.unshift(log);
     this.save();
+  }
+
+  addSecurityIncident(incident) {
+    if (!this.data) this.data = {};
+    if (!Array.isArray(this.data.securityIncidents)) this.data.securityIncidents = [];
+    
+    incident.id = incident.id || Date.now();
+    incident.status = incident.status || 'UNRESOLVED'; // 'UNRESOLVED' | 'RESOLVED_FALSE_POSITIVE' | 'REFERRED_DISCIPLINARY'
+    incident.timestamp = incident.timestamp || new Date().toISOString();
+    incident.time = incident.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    this.data.securityIncidents.unshift(incident);
+
+    // Also automatically write to tamper-evident audit log
+    const student = this.getUserById(incident.studentId);
+    this.addAuditLog({
+      actorId: incident.studentId || null,
+      actor: student ? `${student.fullName} (${student.identifier})` : 'Unknown Account',
+      action: incident.incidentType || 'SECURITY_INCIDENT_FLAG',
+      details: `MALICIOUS ALERT: ${incident.details || 'Suspicious attendance activity detected.'} [Session #${incident.sessionId}]`,
+      time: new Date().toLocaleString()
+    });
+
+    this.save();
+    return incident;
+  }
+
+  resolveSecurityIncident(incidentId, resolvedByLecturerId, action = 'REFERRED_DISCIPLINARY', note = '') {
+    if (!this.data || !Array.isArray(this.data.securityIncidents)) return false;
+    const inc = this.data.securityIncidents.find(i => Number(i.id) === Number(incidentId));
+    if (!inc) return false;
+
+    inc.status = action;
+    inc.resolvedBy = resolvedByLecturerId;
+    inc.resolutionNote = note;
+    inc.resolvedAt = new Date().toISOString();
+
+    const lecturer = this.getUserById(resolvedByLecturerId);
+    this.addAuditLog({
+      actorId: resolvedByLecturerId,
+      actor: lecturer ? lecturer.fullName : 'Faculty Officer',
+      action: `SECURITY_INCIDENT_${action}`,
+      details: `Action taken on incident #${incidentId}: ${action}. Notes: ${note}`,
+      time: new Date().toLocaleString()
+    });
+
+    this.save();
+    return true;
+  }
+
+  getUnresolvedIncidentsForStudent(studentId) {
+    if (!this.data || !Array.isArray(this.data.securityIncidents)) return [];
+    return this.data.securityIncidents.filter(i => 
+      Number(i.studentId) === Number(studentId) && i.status === 'UNRESOLVED'
+    );
   }
 
   // Purge test insertions (attendance & flags) and normalize authentic datasets with clean system unique IDs in local store

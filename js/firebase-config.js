@@ -323,6 +323,35 @@ class CloudSyncEngine {
         console.warn('Attendance records hydration notice:', attErr.message);
       }
 
+      // 7. Fetch Security Incidents
+      try {
+        const secSnap = await this.db.collection('security_incidents').get();
+        if (!secSnap.empty) {
+          const cloudInc = secSnap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: Number(d.id) || Number(doc.id) || d.id,
+              sessionId: Number(d.sessionId),
+              courseId: Number(d.courseId),
+              studentId: Number(d.studentId),
+              incidentType: d.incidentType || 'SECURITY_BREACH',
+              details: d.details || '',
+              status: d.status || 'UNRESOLVED',
+              timestamp: d.timestamp || new Date().toISOString(),
+              time: d.time || '09:00 AM',
+              confidence: d.confidence,
+              location: d.location
+            };
+          });
+          const incMap = new Map();
+          (data.securityIncidents || []).forEach(i => incMap.set(Number(i.id), i));
+          cloudInc.forEach(i => incMap.set(Number(i.id), i));
+          data.securityIncidents = Array.from(incMap.values()).sort((a, b) => Number(b.id) - Number(a.id));
+        }
+      } catch (secErr) {
+        console.warn('Security incidents hydration notice:', secErr.message);
+      }
+
       // Save to local cache
       window.smartBioData.save(data);
 
@@ -604,6 +633,23 @@ class CloudSyncEngine {
         }, (error) => {
           console.warn('Firestore registrations listener notice:', error.message);
         });
+
+      // 8. Real-time Security Incidents Listener (Anti-Proxy / Impersonation Alerts)
+      this.db.collection('security_incidents')
+        .onSnapshot((snapshot) => {
+          if (!snapshot.empty) {
+            const data = window.smartBioData.load();
+            const cloudInc = snapshot.docs.map(d => ({ ...d.data(), id: Number(d.data().id) || Number(d.id) || d.id }));
+            const incMap = new Map();
+            (data.securityIncidents || []).forEach(i => incMap.set(Number(i.id), i));
+            cloudInc.forEach(i => incMap.set(Number(i.id), i));
+            data.securityIncidents = Array.from(incMap.values()).sort((a, b) => Number(b.id) - Number(a.id));
+            window.smartBioData.save(data);
+            window.dispatchEvent(new CustomEvent('smartbio:security_incident', { detail: data.securityIncidents }));
+          }
+        }, (error) => {
+          console.warn('Firestore security incidents listener notice:', error.message);
+        });
     } catch (e) {
       console.warn('Could not attach Firestore listeners:', e);
     }
@@ -737,6 +783,47 @@ class CloudSyncEngine {
     }
 
     window.dispatchEvent(new CustomEvent('smartbio:flagged_update', { detail: window.smartBioData.getFlagged() }));
+    return success;
+  }
+
+  // Push new Security Incident (Proxy Impersonation / Remote Geofence Breach) to Cloud + Local Store
+  async recordSecurityIncident(incident) {
+    const saved = window.smartBioData.addSecurityIncident(incident);
+
+    if (this.isConnected && this.db) {
+      try {
+        await this.db.collection('security_incidents').doc(String(incident.id)).set({
+          ...incident,
+          serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('Cloud security incident sync skipped:', e.message);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('smartbio:security_incident', { detail: window.smartBioData.getSecurityIncidents() }));
+    return saved;
+  }
+
+  // Resolve Security Incident on Cloud & Local
+  async resolveSecurityIncident(incidentId, resolvedByLecturerId, action, notes) {
+    const success = window.smartBioData.resolveSecurityIncident(incidentId, resolvedByLecturerId, action, notes);
+
+    if (this.isConnected && this.db) {
+      try {
+        await this.db.collection('security_incidents').doc(String(incidentId)).set({
+          status: action,
+          resolvedBy: resolvedByLecturerId,
+          resolutionNote: notes,
+          resolvedAt: new Date().toISOString(),
+          serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.warn('Cloud security incident resolve skipped:', e.message);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('smartbio:security_incident', { detail: window.smartBioData.getSecurityIncidents() }));
     return success;
   }
 

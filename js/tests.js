@@ -46,6 +46,10 @@ class SmartBioTestSuite {
     this.testActiveSessionLifecycleAndFiltering();
     this.testReversibleBackupAndSelectiveClean();
     this.testRoleScopingAndAdminSuite();
+    await this.testClassroomGeofencingAndProximity();
+    await this.testBiometricProxyCrossValidation();
+    this.testAuthoritativeEnrollmentLockAnd1NDeduplication();
+    this.testMaliciousActivityIncidentAlertAndNUCHold();
 
     // Restore pristine pre-test university database state
     window.smartBioData.save(JSON.parse(JSON.stringify(this.preTestSnapshot)));
@@ -708,6 +712,114 @@ class SmartBioTestSuite {
     } else {
       window.smartBioData.resetToSeeds();
     }
+  }
+
+  // 13. Classroom Geofencing & Physical Proximity Validation (NDPA 2023 Sec. 24)
+  async testClassroomGeofencingAndProximity() {
+    this.assert('SmartBioGeofence engine is mounted and available', !!window.smartBioGeofence);
+
+    // Haversine Distance exactness test
+    const venue = window.smartBioGeofence.getVenueByName('ICT Hall A');
+    this.assert('ICT Hall A venue boundary exists with 50m radius', !!venue && venue.radiusMeters === 50.0);
+
+    // 1. In-Classroom Test (approx 5m from center)
+    const inClassResult = await window.smartBioGeofence.verifyProximity('ICT Hall A', 'SIM_IN_CLASS');
+    this.assert(
+      'In-Classroom student position passes geofence check within 50m perimeter',
+      inClassResult.success === true && inClassResult.status === 'WITHIN_CLASSROOM' && inClassResult.distanceMeters <= 50.0,
+      `Calculated distance: ${inClassResult.distanceMeters}m (Allowed: ${inClassResult.allowedRadiusMeters}m)`
+    );
+
+    // 2. Hostel / Remote Test (~1.2km away)
+    const hostelResult = await window.smartBioGeofence.verifyProximity('ICT Hall A', 'SIM_HOSTEL_REMOTE');
+    this.assert(
+      'Hostel / Off-campus remote check-in attempt is strictly rejected (OUT_OF_BOUNDS_LOCATION_BREACH)',
+      hostelResult.success === false && hostelResult.status === 'OUT_OF_BOUNDS_LOCATION_BREACH' && hostelResult.distanceMeters > 1000,
+      `Calculated distance: ${hostelResult.distanceMeters}m (Allowed: ${hostelResult.allowedRadiusMeters}m)`
+    );
+  }
+
+  // 14. Anti-Proxy Biometric Cross-Validation
+  async testBiometricProxyCrossValidation() {
+    this.assert('SmartBioBiometric engine supports proxy mismatch verification', !!window.smartBioBiometric);
+
+    // Test proxy mismatch scan for student 4 (Benedict)
+    const result = await window.smartBioBiometric.simulator.verify(
+      window.smartBioData.getUserById(4),
+      { testMode: 'PROXY_MISMATCH', sessionId: 1 }
+    );
+
+    this.assert(
+      'Accomplice scanning friend finger is flagged as VOID_PROXY_MISMATCH',
+      result.status === 'VOID_PROXY_MISMATCH' && result.flagReason === 'BIOMETRIC_PROXY_IMPERSONATION',
+      `Result status: ${result.status}, flagReason: ${result.flagReason}`
+    );
+
+    this.assert(
+      'Proxy attempt similarity score falls significantly below 70% threshold',
+      result.confidence < 70.0 && result.confidence > 0,
+      `Captured match confidence: ${result.confidence}%`
+    );
+  }
+
+  // 15. Authoritative Biometric Enrollment Lock & 1:N Global Deduplication
+  testAuthoritativeEnrollmentLockAnd1NDeduplication() {
+    const chukwudi = window.smartBioData.getUserById(6);
+    this.assert('Chukwudi template exists in registry', !!chukwudi && !!chukwudi.fingerTemplate);
+
+    // Attempt to register Chukwudi's finger under Benedict's account (Student ID 4)
+    const collision = window.smartBioBiometric.checkBiometricCollision(chukwudi.fingerTemplate, 4);
+
+    this.assert(
+      '1:N Global Deduplication catches duplicate biometric collision and blocks rogue re-enrollment',
+      collision.collision === true && collision.conflictingUser && collision.conflictingUser.id === 6,
+      `Collision reason: ${collision.reason || 'None'}`
+    );
+  }
+
+  // 16. Real-Time Malicious Activity Alerts & NUC Disciplinary Hold Integration
+  testMaliciousActivityIncidentAlertAndNUCHold() {
+    // 1. Add a test security incident for Benedict (Student ID: 4)
+    const testIncident = {
+      id: 999901,
+      sessionId: 1,
+      courseId: 1,
+      studentId: 4,
+      studentName: 'Benedict Uchechukwu',
+      studentIdentifier: 'GWU/CSC/22/001',
+      incidentType: 'BIOMETRIC_PROXY_IMPERSONATION',
+      details: 'Minutiae ridge pattern mismatch. Attempted proxy check-in by classmate.',
+      status: 'UNRESOLVED'
+    };
+
+    window.smartBioData.addSecurityIncident(testIncident);
+
+    const incidents = window.smartBioData.getSecurityIncidents();
+    const saved = incidents.find(i => i.id === 999901);
+    this.assert('Malicious security incident successfully recorded in authoritative ledger', !!saved && saved.status === 'UNRESOLVED');
+
+    // 2. Verify NUC Compliance Engine attaches Disciplinary Hold to student
+    const complianceWithHold = window.smartBioCompliance.calculateStudentCompliance(4);
+    this.assert(
+      'Student with unresolved proxy incident is placed on DISCIPLINARY HOLD',
+      complianceWithHold.hasSecurityHold === true && complianceWithHold.allEligible === false && complianceWithHold.overallStatus.includes('DISCIPLINARY HOLD'),
+      `Overall status: ${complianceWithHold.overallStatus}`
+    );
+
+    // 3. Verify Docket includes caution banner
+    const docketHtml = window.smartBioCompliance.renderClearanceDocket(4);
+    this.assert(
+      'Examination clearance docket renders DISCIPLINARY HOLD ACTIVE warning banner',
+      docketHtml.includes('DISCIPLINARY HOLD ACTIVE') && docketHtml.includes('proxy biometric impersonation')
+    );
+
+    // 4. Resolve incident (Dismiss / False Positive)
+    window.smartBioData.resolveSecurityIncident(999901, 2, 'RESOLVED_FALSE_POSITIVE', 'Verified physical presence');
+    const resolvedCompliance = window.smartBioCompliance.calculateStudentCompliance(4);
+    this.assert(
+      'Resolving security incident clears disciplinary hold and restores academic exam eligibility',
+      resolvedCompliance.hasSecurityHold === false && resolvedCompliance.allEligible === true
+    );
   }
 }
 

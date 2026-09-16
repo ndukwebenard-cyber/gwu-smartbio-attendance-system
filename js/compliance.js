@@ -85,13 +85,22 @@ class NUCComplianceEngine {
       });
     });
 
+    // Check for unresolved security / proxy incidents (Anti-Proxy Integrity)
+    const unresolvedIncidents = (data.securityIncidents || []).filter(i => 
+      Number(i.studentId) === Number(studentId) && i.status === 'UNRESOLVED'
+    );
+    const hasSecurityHold = unresolvedIncidents.length > 0;
+
     // Overall clearance status across all registered courses
-    const allEligible = courseStats.length > 0 && courseStats.every(c => c.status === 'ELIGIBLE' || c.totalHeld === 0);
+    let allEligible = courseStats.length > 0 && courseStats.every(c => c.status === 'ELIGIBLE' || c.totalHeld === 0);
     const hasDefaulter = courseStats.some(c => c.status === 'INELIGIBLE');
     const hasAtRisk = courseStats.some(c => c.status === 'AT_RISK');
 
     let overallStatus = 'FULLY CLEARED FOR EXAMS';
-    if (hasDefaulter) {
+    if (hasSecurityHold) {
+      allEligible = false;
+      overallStatus = 'DISCIPLINARY HOLD (PROXY/GEOFENCE BREACH FLAGGED)';
+    } else if (hasDefaulter) {
       overallStatus = 'BARRED FROM SOME PAPERS';
     } else if (hasAtRisk) {
       overallStatus = 'CONDITIONAL CLEARANCE (AT RISK)';
@@ -103,6 +112,8 @@ class NUCComplianceEngine {
       allEligible,
       hasDefaulter,
       hasAtRisk,
+      hasSecurityHold,
+      unresolvedIncidents,
       overallStatus
     };
   }
@@ -238,6 +249,12 @@ class NUCComplianceEngine {
             <span style="font-size: 7.5px; font-family: monospace; margin-top: 4px; color: #64748b; text-align: center; word-break: break-all;">${qrSecurityToken}</span>
           </div>
         </div>
+
+        ${compliance.hasSecurityHold ? `
+          <div style="margin: 10px 0; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border: 1.5px solid #ef4444; border-radius: 6px; color: #b91c1c; font-size: 0.8rem; line-height: 1.4;">
+            <strong>🚨 DISCIPLINARY HOLD ACTIVE:</strong> This student account has ${compliance.unresolvedIncidents.length} pending security incident(s) for attempted proxy biometric impersonation or off-campus geofence breach. Examination clearance is conditionally suspended pending Faculty Disciplinary Review.
+          </div>
+        ` : ''}
 
         <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -2px;">
           <table class="docket-courses-table">

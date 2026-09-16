@@ -206,6 +206,21 @@ class SimulatedFingerprintProvider extends BiometricProvider {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
+      case 'PROXY_MISMATCH':
+        // A friend or accomplice scanned their finger while logged in under another student's account
+        return {
+          success: false,
+          status: 'VOID_PROXY_MISMATCH',
+          provider: 'SIMULATED_OPTICAL',
+          method: 'OPTICAL_FINGERPRINT_SIM',
+          flagReason: 'BIOMETRIC_PROXY_IMPERSONATION',
+          confidence: Number((13.0 + Math.random() * 3.5).toFixed(1)), // Mismatch minutiae similarity ~14%
+          student: user,
+          sessionId: sessionId,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          incidentDetails: 'Captured ridge minutiae pattern failed cross-validation against the registered biometric profile for ' + (user ? user.fullName : 'Account Holder') + '.'
+        };
+
       case 'SWEATY_RIDGE':
       case 'INJURED_FINGER':
         return {
@@ -243,14 +258,59 @@ class BiometricEngine {
     this.isScanning = false;
   }
 
-  // Attempt WebAuthn hardware passkey verification
-  async authenticateWithWebAuthn(user) {
-    return await this.webAuthn.verify(user);
+  // Authoritative 1:N Biometric Collision / Deduplication Check (ISO/IEC 19795 Compliance)
+  checkBiometricCollision(templateOrCredential, currentUserId = null) {
+    if (!templateOrCredential || !window.smartBioData) return { collision: false };
+    const users = window.smartBioData.getUsers();
+
+    for (const u of users) {
+      if (currentUserId && Number(u.id) === Number(currentUserId)) continue;
+
+      const templateMatch = u.fingerTemplate && u.fingerTemplate === templateOrCredential;
+      const credentialMatch = u.credentialId && u.credentialId === templateOrCredential;
+
+      if (templateMatch || credentialMatch) {
+        return {
+          collision: true,
+          conflictingUser: u,
+          reason: `Biometric signature collision: This fingerprint profile is already enrolled to ${u.fullName} (${u.identifier}).`
+        };
+      }
+    }
+
+    return { collision: false };
   }
 
-  // Register WebAuthn passkey
+  // Attempt WebAuthn hardware passkey verification with Account-Binding Check
+  async authenticateWithWebAuthn(user) {
+    const res = await this.webAuthn.verify(user);
+    if (res && res.success && user && user.credentialId) {
+      if (res.credentialId && res.credentialId !== user.credentialId) {
+        return {
+          success: false,
+          status: 'VOID_PROXY_MISMATCH',
+          provider: 'WEBAUTHN',
+          flagReason: 'PASSPORT_CREDENTIAL_MISMATCH',
+          confidence: 0,
+          student: user,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          incidentDetails: 'Hardware passkey returned an unrecognized public key credential not bound to ' + user.fullName
+        };
+      }
+    }
+    return res;
+  }
+
+  // Register WebAuthn passkey with 1:N Collision Prevention
   async enrollWebAuthn(user) {
-    return await this.webAuthn.enroll(user);
+    const res = await this.webAuthn.enroll(user);
+    if (res && res.success && res.credentialId) {
+      const collision = this.checkBiometricCollision(res.credentialId, user.id);
+      if (collision.collision) {
+        throw new Error(collision.reason);
+      }
+    }
+    return res;
   }
 
   // Run optical scanner simulation with sensory UI updates
@@ -271,6 +331,9 @@ class BiometricEngine {
     } else if (result.status === 'FLAGGED') {
       this.setPlatenVisualState('flagged');
       if (window.smartBioAudio) window.smartBioAudio.playFlaggedWarning();
+    } else if (result.status === 'VOID_PROXY_MISMATCH') {
+      this.setPlatenVisualState('error');
+      if (window.smartBioAudio) window.smartBioAudio.playSecurityAlarm();
     } else {
       this.setPlatenVisualState('error');
       if (window.smartBioAudio) window.smartBioAudio.playErrorBuzz();

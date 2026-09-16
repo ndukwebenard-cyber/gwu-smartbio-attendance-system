@@ -126,6 +126,34 @@ class SoundSynthesizer {
       console.warn('Audio play error', e);
     }
   }
+
+  // Urgent Alternating Alarm Siren for Malicious Proxy / Security Breach
+  playSecurityAlarm() {
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const pitches = [880, 587.33, 880, 587.33]; // A5 - D5 alternating siren
+      pitches.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.15);
+
+        gain.gain.setValueAtTime(0.22, this.ctx.currentTime + idx * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.15 + 0.14);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(this.ctx.currentTime + idx * 0.15);
+        osc.stop(this.ctx.currentTime + idx * 0.15 + 0.15);
+      });
+    } catch (e) {
+      console.warn('Audio play error', e);
+    }
+  }
 }
 
 window.smartBioAudio = new SoundSynthesizer();
