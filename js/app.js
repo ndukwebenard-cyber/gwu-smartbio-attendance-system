@@ -521,15 +521,15 @@ class SmartBioApp {
     const registerView = document.getElementById('authRegisterView');
     const resetView = document.getElementById('authResetView');
 
-    if (signInView) signInView.style.display = viewName === 'LOGIN' ? 'block' : 'none';
+    if (signInView) signInView.style.display = viewName === 'LOGIN' ? 'flex' : 'none';
     if (registerView) {
-      registerView.style.display = viewName === 'REGISTER' ? 'block' : 'none';
+      registerView.style.display = viewName === 'REGISTER' ? 'flex' : 'none';
       if (viewName === 'REGISTER') {
         this.populateDepartmentDropdowns();
         this.updateRegMatricPreview();
       }
     }
-    if (resetView) resetView.style.display = viewName === 'RESET' ? 'block' : 'none';
+    if (resetView) resetView.style.display = viewName === 'RESET' ? 'flex' : 'none';
   }
 
   fillDemoAuth(role) {
