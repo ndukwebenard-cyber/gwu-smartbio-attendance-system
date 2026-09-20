@@ -919,10 +919,19 @@ class CloudSyncEngine {
         console.log(`✓ Purged ${flagSnap.size} test flagged exceptions.`);
       }
 
-      // 3. Clear active lecture session doc
+      // 3. Delete all security_incidents (test geofence breach & proxy alerts)
+      const incSnap = await this.db.collection('security_incidents').get();
+      if (!incSnap.empty) {
+        const incBatch = this.db.batch();
+        incSnap.forEach(doc => incBatch.delete(doc.ref));
+        await incBatch.commit();
+        console.log(`✓ Purged ${incSnap.size} test security incidents.`);
+      }
+
+      // 4. Clear active lecture session doc
       await this.db.collection('lecture_sessions').doc('active_session').delete().catch(() => {});
 
-      // 4. Update / Normalize permanent datasets with unified system-wide unique IDs
+      // 5. Update / Normalize permanent datasets with unified system-wide unique IDs
       const data = window.smartBioData.load();
       const normBatch = this.db.batch();
 

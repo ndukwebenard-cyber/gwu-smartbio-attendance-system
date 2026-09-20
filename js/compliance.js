@@ -87,7 +87,7 @@ class NUCComplianceEngine {
 
     // Check for unresolved security / proxy incidents (Anti-Proxy Integrity)
     const unresolvedIncidents = (data.securityIncidents || []).filter(i => 
-      Number(i.studentId) === Number(studentId) && i.status === 'UNRESOLVED'
+      Number(i.studentId) === Number(studentId) && (i.status === 'UNRESOLVED' || i.status === 'REFERRED_DISCIPLINARY')
     );
     const hasSecurityHold = unresolvedIncidents.length > 0;
 

@@ -413,6 +413,18 @@ class DataStore {
   addSecurityIncident(incident) {
     if (!this.data) this.data = {};
     if (!Array.isArray(this.data.securityIncidents)) this.data.securityIncidents = [];
+
+    // Deduplicate: prevent stacking multiple unresolved incidents of the same type for same student and session
+    const existing = this.data.securityIncidents.find(i => 
+      Number(i.sessionId) === Number(incident.sessionId) && 
+      Number(i.studentId) === Number(incident.studentId) && 
+      i.incidentType === incident.incidentType && 
+      i.status === 'UNRESOLVED'
+    );
+    if (existing) {
+      console.warn(`[SmartBio] Security incident already pending for student #${incident.studentId} in session #${incident.sessionId}.`);
+      return existing;
+    }
     
     incident.id = incident.id || Date.now();
     incident.status = incident.status || 'UNRESOLVED'; // 'UNRESOLVED' | 'RESOLVED_FALSE_POSITIVE' | 'REFERRED_DISCIPLINARY'
@@ -473,7 +485,10 @@ class DataStore {
     // 2. Purge transient test flagged exceptions
     this.data.flaggedExceptions = [];
 
-    // 3. Normalize permanent datasets with unified system-wide unique IDs
+    // 3. Purge transient test security incidents (geofence breaches & proxy flags)
+    this.data.securityIncidents = [];
+
+    // 4. Normalize permanent datasets with unified system-wide unique IDs
     // Users
     this.data.users = (this.data.users || []).map(u => ({
       ...u,
@@ -679,9 +694,10 @@ class DataStore {
       updatedAt: new Date().toISOString()
     }));
 
-    // Retain filtered attendance and flags
+    // Retain filtered attendance and flags; reset transient test security incidents
     this.data.attendanceRecords = userAttendance;
     this.data.flaggedExceptions = userFlagged;
+    this.data.securityIncidents = [];
 
     // Clear active transient lecture session
     try {

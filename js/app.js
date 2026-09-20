@@ -1713,7 +1713,18 @@ class SmartBioApp {
       return;
     }
 
-    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+    let html = '';
+    if (unresolved.length > 1) {
+      html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 6px 10px; background: rgba(255,255,255,0.04); border-radius: 6px;">
+          <span style="font-size: 0.78rem; color: var(--text-muted);">${unresolved.length} pending security breaches/proxy alerts</span>
+          <button class="btn btn-sm btn-secondary" style="font-size: 0.72rem; padding: 3px 8px;" onclick="smartBioApp.dismissAllSecurityIncidents()">
+            ✓ Dismiss All (False Positives)
+          </button>
+        </div>
+      `;
+    }
+    html += '<div style="display: flex; flex-direction: column; gap: 10px;">';
     unresolved.forEach(inc => {
       const student = window.smartBioData.getUserById(inc.studentId) || { fullName: inc.studentName || 'Student', identifier: inc.studentIdentifier || 'N/A' };
       const isProxy = inc.incidentType === 'BIOMETRIC_PROXY_IMPERSONATION';
@@ -1770,6 +1781,32 @@ class SmartBioApp {
     window.smartBioCloud.resolveSecurityIncident(incidentId, this.currentUserId, action, note);
     this.showToast(action === 'REFERRED_DISCIPLINARY' ? 'Incident flagged! Disciplinary hold attached to student docket.' : 'Security incident dismissed.', action === 'REFERRED_DISCIPLINARY' ? 'warning' : 'info');
 
+    this.renderSecurityIncidentQueue();
+    if (this.currentView === 'LECTURER') this.renderLecturerPortal();
+    if (this.currentView === 'STUDENT') this.renderStudentPortal();
+  }
+
+  dismissAllSecurityIncidents() {
+    if (!this.authenticatedUser || (this.authenticatedUser.role !== 'LECTURER' && this.authenticatedUser.role !== 'ADMIN')) {
+      window.smartBioAudio.playErrorBuzz();
+      this.showToast('⛔ Access Denied: Only Course Lecturers and Administrators can resolve security incidents.', 'error');
+      return;
+    }
+
+    const data = window.smartBioData.load();
+    const unresolved = (data.securityIncidents || []).filter(i => i.status === 'UNRESOLVED');
+    if (unresolved.length === 0) return;
+
+    unresolved.forEach(inc => {
+      window.smartBioCloud.resolveSecurityIncident(
+        inc.id,
+        this.currentUserId,
+        'RESOLVED_FALSE_POSITIVE',
+        'Batch dismissed by Lecturer/Admin (Defense/Simulation test cleared)'
+      );
+    });
+
+    this.showToast(`✅ Dismissed ${unresolved.length} security alert(s) as false positives.`, 'success');
     this.renderSecurityIncidentQueue();
     if (this.currentView === 'LECTURER') this.renderLecturerPortal();
     if (this.currentView === 'STUDENT') this.renderStudentPortal();
