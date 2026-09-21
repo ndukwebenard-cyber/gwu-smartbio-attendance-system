@@ -17,6 +17,22 @@ class SmartBioGeofence {
       },
       {
         id: 2,
+        name: 'ICT Hall B',
+        building: 'Computer Science & Software Complex',
+        latitude: 6.524450,
+        longitude: 3.379320,
+        radiusMeters: 50.0
+      },
+      {
+        id: 3,
+        name: 'Computer Lab 1',
+        building: 'Hardware & Biometrics Lab Wing',
+        latitude: 6.524250,
+        longitude: 3.379150,
+        radiusMeters: 35.0
+      },
+      {
+        id: 4,
         name: 'Engineering Hall B',
         building: 'Faculty of Engineering Block',
         latitude: 6.525100,
@@ -24,12 +40,20 @@ class SmartBioGeofence {
         radiusMeters: 45.0
       },
       {
-        id: 3,
+        id: 5,
         name: 'Science Auditorium',
         building: 'Natural Sciences Complex',
         latitude: 6.523800,
         longitude: 3.380100,
         radiusMeters: 60.0
+      },
+      {
+        id: 6,
+        name: 'University Main Auditorium',
+        building: 'Central Campus Plaza',
+        latitude: 6.526000,
+        longitude: 3.377500,
+        radiusMeters: 75.0
       }
     ];
 
@@ -71,9 +95,29 @@ class SmartBioGeofence {
     });
     if (buildingMatch) return buildingMatch;
 
-    // 3. Common campus aliases (e.g. "the class", "classroom", "main hall" map to primary ICT Hall A baseline)
-    if (['the class', 'class', 'classroom', 'lecture hall', 'main hall', 'hall'].includes(normalized)) {
-      return this.venues[0];
+    // 3. Common campus aliases & abbreviations
+    if (normalized.includes('ict a') || normalized.includes('hall a') || normalized === 'hall 1') {
+      return this.venues.find(v => v.name === 'ICT Hall A') || this.venues[0];
+    }
+    if (normalized.includes('ict b') || normalized.includes('hall b') || normalized === 'hall 2') {
+      return this.venues.find(v => v.name === 'ICT Hall B') || this.venues[1];
+    }
+    if (normalized.includes('lab') || normalized.includes('lab 1') || normalized.includes('computer lab')) {
+      return this.venues.find(v => v.name === 'Computer Lab 1') || this.venues[2];
+    }
+    if (normalized.includes('eng') || normalized.includes('engineering') || normalized === 'hall 3') {
+      return this.venues.find(v => v.name === 'Engineering Hall B') || this.venues[3];
+    }
+    if (normalized.includes('sci') || normalized.includes('science') || normalized.includes('auditorium')) {
+      return this.venues.find(v => v.name === 'Science Auditorium') || this.venues[4];
+    }
+    if (normalized.includes('main') || normalized.includes('plaza')) {
+      return this.venues.find(v => v.name === 'University Main Auditorium') || this.venues[5];
+    }
+
+    // 4. Generic campus terms (e.g. "the class", "classroom", "class", "hall", "lecture hall", "hall ...")
+    if (['the class', 'class', 'classroom', 'lecture hall', 'main hall', 'hall'].includes(normalized) || normalized.startsWith('hall')) {
+      return this.venues[0]; // ICT Hall A
     }
 
     return null; // Unrecognized custom venues rejected

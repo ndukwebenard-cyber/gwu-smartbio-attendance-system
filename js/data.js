@@ -120,6 +120,7 @@ const DEFAULT_SEEDS = {
       departmentId: 1,
       level: 400,
       lecturerId: 2,
+      venue: 'ICT Hall A',
       minAttendancePct: 75
     },
     {
@@ -130,6 +131,7 @@ const DEFAULT_SEEDS = {
       departmentId: 1,
       level: 400,
       lecturerId: 2,
+      venue: 'Computer Lab 1',
       minAttendancePct: 75
     },
     {
@@ -140,6 +142,7 @@ const DEFAULT_SEEDS = {
       departmentId: 1,
       level: 400,
       lecturerId: 3,
+      venue: 'ICT Hall B',
       minAttendancePct: 75
     },
     {
@@ -150,6 +153,7 @@ const DEFAULT_SEEDS = {
       departmentId: 1,
       level: 400,
       lecturerId: 3,
+      venue: 'Science Auditorium',
       minAttendancePct: 75
     }
   ],

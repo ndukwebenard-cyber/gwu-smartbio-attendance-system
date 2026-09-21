@@ -90,8 +90,9 @@ class SmartBioApp {
         const parsed = JSON.parse(savedSess);
         if (parsed && parsed.status === 'ACTIVE') {
           // Auto-heal legacy, null, or invalid session venues to registered campus venue
-          if (window.smartBioGeofence && (!parsed.venue || !window.smartBioGeofence.getVenueByName(parsed.venue))) {
-            parsed.venue = 'ICT Hall A';
+          if (window.smartBioGeofence) {
+            const vObj = window.smartBioGeofence.getVenueByName(parsed.venue);
+            parsed.venue = vObj ? vObj.name : 'ICT Hall A';
             try { localStorage.setItem('smartbio_active_session', JSON.stringify(parsed)); } catch (_) {}
           }
           this.activeLectureSession = parsed;
@@ -2688,7 +2689,8 @@ class SmartBioApp {
 
         // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
         // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
-        const venueName = activeSess.venue || 'ICT Hall A';
+        const venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
+        const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
         const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP');
         const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
         const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
@@ -2854,7 +2856,8 @@ class SmartBioApp {
 
     // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
     // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
-    const venueName = activeSess.venue || 'ICT Hall A';
+    const venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
+    const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
     const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && student && Number(student.id) === Number(this.authenticatedUser.id);
     const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
     const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
@@ -3058,6 +3061,21 @@ class SmartBioApp {
     select.innerHTML = html;
     if (preferredCourseId && relevantCourses.some(c => Number(c.id) === Number(preferredCourseId))) {
       select.value = String(preferredCourseId);
+    }
+
+    const updateVenueForSelectedCourse = () => {
+      const selectedId = Number(select.value);
+      const selectedCourse = courses.find(c => c.id === selectedId);
+      const venueSelect = document.getElementById('lectureVenueInput');
+      if (venueSelect && selectedCourse && selectedCourse.venue) {
+        venueSelect.value = selectedCourse.venue;
+      }
+    };
+
+    updateVenueForSelectedCourse();
+    if (!select._venueBound) {
+      select._venueBound = true;
+      select.addEventListener('change', updateVenueForSelectedCourse);
     }
   }
 
