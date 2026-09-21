@@ -1222,6 +1222,17 @@ class SmartBioApp {
     const courseId = Number(courseSelect ? courseSelect.value : 1);
     const topic = topicInput && topicInput.value.trim() ? topicInput.value.trim() : 'Advanced Software Architecture & WebAuthn';
     const venue = venueInput && venueInput.value.trim() ? venueInput.value.trim() : 'ICT Hall A';
+
+    // VENUE VALIDATION: The venue must exist in the authoritative geofence registry.
+    // This prevents sessions from being created with unrecognized venues that would
+    // cause all attendance scans to fail or silently bypass the geofence.
+    const resolvedVenue = window.smartBioGeofence.getVenueByName(venue);
+    if (!resolvedVenue) {
+      window.smartBioAudio.playErrorBuzz();
+      const knownVenues = window.smartBioGeofence.getVenues().map(v => v.name).join(', ');
+      this.showToast(`⛔ Venue Not Recognized: "${venue}" is not in the campus geofence registry. Valid venues: ${knownVenues}`, 'error');
+      return;
+    }
     
     // COURSE OWNERSHIP VALIDATION (NDPA Section 26)
     const course = window.smartBioData.getCourseById(courseId);
@@ -2671,22 +2682,32 @@ class SmartBioApp {
         }
 
         // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
-        const venueName = activeSess.venue || 'ICT Hall A';
-        const proximity = await window.smartBioGeofence.verifyProximity(venueName);
+        // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
+        const venueName = activeSess.venue || null;
+        const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP');
+        const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
+        const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
         if (!proximity.success) {
           window.smartBioAudio.playSecurityAlarm();
-          this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Remote check-in VOIDED.`, 'error');
-          window.smartBioCloud.recordSecurityIncident({
-            sessionId: activeSess.id,
-            courseId: activeSess.courseId,
-            studentId: user.id,
-            studentName: user.fullName,
-            studentIdentifier: user.identifier,
-            incidentType: 'REMOTE_GEOFENCE_BREACH',
-            details: `Attempted WebAuthn remote check-in from outside venue (${proximity.distanceMeters}m away from ${venueName}).`,
-            distanceMeters: proximity.distanceMeters,
-            status: 'UNRESOLVED'
-          });
+          if (proximity.status === 'GPS_ACQUISITION_FAILED') {
+            this.showToast(`📍 Location Permission Required: Please allow location access in your browser to verify your presence in ${venueName || 'the classroom'}.`, 'warning');
+          } else {
+            this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Remote check-in VOIDED.`, 'error');
+          }
+          // Only record a security incident for actual location breaches, NOT for GPS permission denied
+          if (proximity.status === 'OUT_OF_BOUNDS_LOCATION_BREACH') {
+            window.smartBioCloud.recordSecurityIncident({
+              sessionId: activeSess.id,
+              courseId: activeSess.courseId,
+              studentId: user.id,
+              studentName: user.fullName,
+              studentIdentifier: user.identifier,
+              incidentType: 'REMOTE_GEOFENCE_BREACH',
+              details: `Attempted WebAuthn remote check-in from outside venue (${proximity.distanceMeters}m away from ${venueName}).`,
+              distanceMeters: proximity.distanceMeters,
+              status: 'UNRESOLVED'
+            });
+          }
           return;
         }
 
@@ -2738,12 +2759,14 @@ class SmartBioApp {
     const venueLabel = document.getElementById('geofenceVenueLabel');
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
       const course = (window.smartBioData.load().courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
-      const venue = this.activeLectureSession.venue || 'ICT Hall A';
+      const venue = this.activeLectureSession.venue || '(No Venue Set)';
+      const venueObj = window.smartBioGeofence.getVenueByName(venue);
+      const radiusLabel = venueObj ? `${venueObj.radiusMeters}m Radius` : 'UNKNOWN';
       this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${venue}) — Optical Sensor Ready`);
-      if (venueLabel) venueLabel.innerText = `${venue} (50m Radius)`;
+      if (venueLabel) venueLabel.innerText = `${venue} (${radiusLabel})`;
     } else {
       this.updateScannerHUD('SIMULATION READY', 'Optical Scanner Ready — Waiting for active lecture session...');
-      if (venueLabel) venueLabel.innerText = 'ICT Hall A (50m Radius)';
+      if (venueLabel) venueLabel.innerText = 'No Session Active';
     }
   }
 
@@ -2819,25 +2842,35 @@ class SmartBioApp {
     const currentCourseId = activeSess.courseId;
 
     // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
-    const venueName = activeSess.venue || 'ICT Hall A';
-    const proximity = await window.smartBioGeofence.verifyProximity(venueName);
+    // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
+    const venueName = activeSess.venue || null;
+    const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && student && Number(student.id) === Number(this.authenticatedUser.id);
+    const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
+    const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
     if (!proximity.success) {
       window.smartBioAudio.playSecurityAlarm();
-      this.updateScannerHUD('LOCATION BREACH VOID', `Remote check-in blocked: ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`);
-      this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`, 'error');
+      if (proximity.status === 'GPS_ACQUISITION_FAILED') {
+        this.updateScannerHUD('LOCATION PERMISSION REQUIRED', `Please allow location access to verify your presence in ${venueName || 'the classroom'}.`);
+        this.showToast(`📍 Location Permission Required: Please allow location access in your browser to sign attendance.`, 'warning');
+      } else {
+        this.updateScannerHUD('LOCATION BREACH VOID', `Remote check-in blocked: ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`);
+        this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`, 'error');
+      }
 
-      // Dispatch Malicious Remote Incident to Lecturer
-      window.smartBioCloud.recordSecurityIncident({
-        sessionId: currentSessionId,
-        courseId: currentCourseId,
-        studentId: student ? student.id : null,
-        studentName: student ? student.fullName : 'Account Holder',
-        studentIdentifier: student ? student.identifier : 'N/A',
-        incidentType: 'REMOTE_GEOFENCE_BREACH',
-        details: `Student account attempted attendance from outside classroom perimeter (${proximity.distanceMeters}m from ${venueName}).`,
-        distanceMeters: proximity.distanceMeters,
-        status: 'UNRESOLVED'
-      });
+      // Only record a security incident for actual location breaches, NOT for GPS permission denied
+      if (proximity.status === 'OUT_OF_BOUNDS_LOCATION_BREACH') {
+        window.smartBioCloud.recordSecurityIncident({
+          sessionId: currentSessionId,
+          courseId: currentCourseId,
+          studentId: student ? student.id : null,
+          studentName: student ? student.fullName : 'Account Holder',
+          studentIdentifier: student ? student.identifier : 'N/A',
+          incidentType: 'REMOTE_GEOFENCE_BREACH',
+          details: `Student account attempted attendance from outside classroom perimeter (${proximity.distanceMeters}m from ${venueName}).`,
+          distanceMeters: proximity.distanceMeters,
+          status: 'UNRESOLVED'
+        });
+      }
       return;
     }
 

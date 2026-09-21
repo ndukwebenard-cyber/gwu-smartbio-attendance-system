@@ -54,10 +54,10 @@ class SmartBioGeofence {
   }
 
   getVenueByName(venueName) {
-    if (!venueName) return this.venues[0];
+    if (!venueName) return null; // No silent fallback — venue must be explicitly specified
     const normalized = venueName.trim().toLowerCase();
     const found = this.venues.find(v => v.name.toLowerCase() === normalized || normalized.includes(v.name.toLowerCase()));
-    return found || this.venues[0]; // Fallback to default hall
+    return found || null; // No silent fallback — unrecognized venues must be rejected
   }
 
   /**
@@ -128,8 +128,22 @@ class SmartBioGeofence {
   /**
    * Verify whether the student is physically within the active lecture venue
    */
-  async verifyProximity(venueName = 'ICT Hall A', modeOverride = null) {
+  async verifyProximity(venueName = null, modeOverride = null) {
     const venue = this.getVenueByName(venueName);
+
+    // STRICT VENUE ENFORCEMENT: If the venue is not in the authoritative registry, REJECT.
+    // This prevents silent fallback to a wrong geofence when a lecturer sets a custom venue name.
+    if (!venue) {
+      return {
+        success: false,
+        status: 'VENUE_NOT_RECOGNIZED',
+        error: `Venue "${venueName || '(none)'}" is not in the authoritative campus venue registry. Geofence check cannot proceed.`,
+        distanceMeters: null,
+        allowedRadiusMeters: null,
+        venueName: venueName || '(none)'
+      };
+    }
+
     const mode = modeOverride || this.currentMode;
 
     try {
