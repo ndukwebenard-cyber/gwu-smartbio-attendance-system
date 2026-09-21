@@ -130,7 +130,11 @@
           </div>
           <div>
             <label class="form-label">Lecture Hall / Venue</label>
-            <input type="text" class="form-control" id="lectureVenueInput" placeholder="e.g. ICT Hall A" autocapitalize="words" data-autocase="title">
+            <select class="form-control" id="lectureVenueInput">
+              <option value="ICT Hall A">ICT Hall A (CS &amp; Software Complex — 50m Geofence)</option>
+              <option value="Engineering Hall B">Engineering Hall B (Faculty of Eng — 45m Geofence)</option>
+              <option value="Science Auditorium">Science Auditorium (Natural Sciences — 60m Geofence)</option>
+            </select>
           </div>
           <button class="btn btn-primary" id="btnStartLectureSession" style="width: 100%;">
             Start Session

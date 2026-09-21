@@ -56,8 +56,27 @@ class SmartBioGeofence {
   getVenueByName(venueName) {
     if (!venueName) return null; // No silent fallback — venue must be explicitly specified
     const normalized = venueName.trim().toLowerCase();
-    const found = this.venues.find(v => v.name.toLowerCase() === normalized || normalized.includes(v.name.toLowerCase()));
-    return found || null; // No silent fallback — unrecognized venues must be rejected
+
+    // 1. Direct or bidirectional match against official venue names (Highest Priority)
+    const nameMatch = this.venues.find(v => {
+      const vName = v.name.toLowerCase();
+      return vName === normalized || normalized.includes(vName) || vName.includes(normalized);
+    });
+    if (nameMatch) return nameMatch;
+
+    // 2. Building description match
+    const buildingMatch = this.venues.find(v => {
+      const bName = (v.building || '').toLowerCase();
+      return bName.includes(normalized) || normalized.includes(bName);
+    });
+    if (buildingMatch) return buildingMatch;
+
+    // 3. Common campus aliases (e.g. "the class", "classroom", "main hall" map to primary ICT Hall A baseline)
+    if (['the class', 'class', 'classroom', 'lecture hall', 'main hall', 'hall'].includes(normalized)) {
+      return this.venues[0];
+    }
+
+    return null; // Unrecognized custom venues rejected
   }
 
   /**

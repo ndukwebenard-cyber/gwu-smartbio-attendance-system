@@ -89,6 +89,11 @@ class SmartBioApp {
       if (savedSess) {
         const parsed = JSON.parse(savedSess);
         if (parsed && parsed.status === 'ACTIVE') {
+          // Auto-heal legacy, null, or invalid session venues to registered campus venue
+          if (window.smartBioGeofence && (!parsed.venue || !window.smartBioGeofence.getVenueByName(parsed.venue))) {
+            parsed.venue = 'ICT Hall A';
+            try { localStorage.setItem('smartbio_active_session', JSON.stringify(parsed)); } catch (_) {}
+          }
           this.activeLectureSession = parsed;
           this.renderActiveSessionUI(parsed);
         }
@@ -2683,19 +2688,22 @@ class SmartBioApp {
 
         // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
         // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
-        const venueName = activeSess.venue || null;
+        const venueName = activeSess.venue || 'ICT Hall A';
         const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP');
         const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
         const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
         if (!proximity.success) {
-          window.smartBioAudio.playSecurityAlarm();
           if (proximity.status === 'GPS_ACQUISITION_FAILED') {
-            this.showToast(`📍 Location Permission Required: Please allow location access in your browser to verify your presence in ${venueName || 'the classroom'}.`, 'warning');
-          } else {
-            this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Remote check-in VOIDED.`, 'error');
-          }
-          // Only record a security incident for actual location breaches, NOT for GPS permission denied
-          if (proximity.status === 'OUT_OF_BOUNDS_LOCATION_BREACH') {
+            window.smartBioAudio.playErrorBuzz();
+            this.showToast(`📍 Location Permission Required: Please allow location access in your browser to verify your physical presence in ${venueName}.`, 'warning');
+          } else if (proximity.status === 'VENUE_NOT_RECOGNIZED') {
+            window.smartBioAudio.playErrorBuzz();
+            const validVenues = window.smartBioGeofence.getVenues().map(v => v.name).join(', ');
+            this.showToast(`⛔ Geofence Unavailable: Venue "${venueName}" is not registered (${validVenues}). Please notify the lecturer.`, 'error');
+          } else if (proximity.status === 'OUT_OF_BOUNDS_LOCATION_BREACH') {
+            window.smartBioAudio.playSecurityAlarm();
+            const distanceLabel = proximity.distanceMeters != null ? `${Math.round(proximity.distanceMeters)}m` : 'the perimeter';
+            this.showToast(`🚨 Security Breach: You are ${distanceLabel} outside ${venueName}. Remote check-in VOIDED.`, 'error');
             window.smartBioCloud.recordSecurityIncident({
               sessionId: activeSess.id,
               courseId: activeSess.courseId,
@@ -2703,10 +2711,13 @@ class SmartBioApp {
               studentName: user.fullName,
               studentIdentifier: user.identifier,
               incidentType: 'REMOTE_GEOFENCE_BREACH',
-              details: `Attempted WebAuthn remote check-in from outside venue (${proximity.distanceMeters}m away from ${venueName}).`,
+              details: `Attempted WebAuthn remote check-in from outside venue (${distanceLabel} away from ${venueName}).`,
               distanceMeters: proximity.distanceMeters,
               status: 'UNRESOLVED'
             });
+          } else {
+            window.smartBioAudio.playErrorBuzz();
+            this.showToast(`⚠️ Location Verification Failed: ${proximity.error || 'Unable to confirm classroom presence.'}`, 'error');
           }
           return;
         }
@@ -2843,22 +2854,25 @@ class SmartBioApp {
 
     // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
     // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
-    const venueName = activeSess.venue || null;
+    const venueName = activeSess.venue || 'ICT Hall A';
     const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && student && Number(student.id) === Number(this.authenticatedUser.id);
     const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
     const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
     if (!proximity.success) {
-      window.smartBioAudio.playSecurityAlarm();
       if (proximity.status === 'GPS_ACQUISITION_FAILED') {
-        this.updateScannerHUD('LOCATION PERMISSION REQUIRED', `Please allow location access to verify your presence in ${venueName || 'the classroom'}.`);
+        window.smartBioAudio.playErrorBuzz();
+        this.updateScannerHUD('LOCATION PERMISSION REQUIRED', `Please allow location access in your browser to sign attendance in ${venueName}.`);
         this.showToast(`📍 Location Permission Required: Please allow location access in your browser to sign attendance.`, 'warning');
-      } else {
-        this.updateScannerHUD('LOCATION BREACH VOID', `Remote check-in blocked: ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`);
-        this.showToast(`🚨 Security Breach: You are ${proximity.distanceMeters}m outside ${venueName}. Attendance VOID.`, 'error');
-      }
-
-      // Only record a security incident for actual location breaches, NOT for GPS permission denied
-      if (proximity.status === 'OUT_OF_BOUNDS_LOCATION_BREACH') {
+      } else if (proximity.status === 'VENUE_NOT_RECOGNIZED') {
+        window.smartBioAudio.playErrorBuzz();
+        const validVenues = window.smartBioGeofence.getVenues().map(v => v.name).join(', ');
+        this.updateScannerHUD('VENUE NOT REGISTERED', `Venue "${venueName}" has no registered geofence.`);
+        this.showToast(`⛔ Geofence Unavailable: Venue "${venueName}" is not registered (${validVenues}).`, 'error');
+      } else if (proximity.status === 'OUT_OF_BOUNDS_LOCATION_BREACH') {
+        window.smartBioAudio.playSecurityAlarm();
+        const distanceLabel = proximity.distanceMeters != null ? `${Math.round(proximity.distanceMeters)}m` : 'the perimeter';
+        this.updateScannerHUD('LOCATION BREACH VOID', `Remote check-in blocked: ${distanceLabel} outside ${venueName}. Attendance VOID.`);
+        this.showToast(`🚨 Security Breach: You are ${distanceLabel} outside ${venueName}. Attendance VOID.`, 'error');
         window.smartBioCloud.recordSecurityIncident({
           sessionId: currentSessionId,
           courseId: currentCourseId,
@@ -2866,10 +2880,14 @@ class SmartBioApp {
           studentName: student ? student.fullName : 'Account Holder',
           studentIdentifier: student ? student.identifier : 'N/A',
           incidentType: 'REMOTE_GEOFENCE_BREACH',
-          details: `Student account attempted attendance from outside classroom perimeter (${proximity.distanceMeters}m from ${venueName}).`,
+          details: `Student account attempted attendance from outside classroom perimeter (${distanceLabel} from ${venueName}).`,
           distanceMeters: proximity.distanceMeters,
           status: 'UNRESOLVED'
         });
+      } else {
+        window.smartBioAudio.playErrorBuzz();
+        this.updateScannerHUD('LOCATION CHECK FAILED', proximity.error || 'Unable to confirm presence in classroom.');
+        this.showToast(`⚠️ Location Verification Failed: ${proximity.error || 'Unable to confirm presence in classroom.'}`, 'error');
       }
       return;
     }
