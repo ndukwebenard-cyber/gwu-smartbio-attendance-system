@@ -156,7 +156,46 @@ class SmartBioGeofence {
       return this.venues.find(v => v.name === 'University Main Auditorium') || this.venues[5];
     }
 
-    // 4. Generic campus terms (e.g. "the class", "classroom", "class", "hall", "lecture hall", "hall ...")
+    // 4. Lecturer dynamic / verified custom geolocations
+    if (normalized.includes('dynamic') || normalized.includes('lecturer') || normalized.includes('verified') || normalized.includes('gps')) {
+      const customMatch = this.venues.find(v => v.isCustom);
+      if (customMatch) return customMatch;
+
+      // Check if active session in localStorage contains coordinates
+      try {
+        const savedSess = localStorage.getItem('smartbio_active_session');
+        if (savedSess) {
+          const sess = JSON.parse(savedSess);
+          if (sess && sess.venueCoordinates && sess.venueCoordinates.latitude != null) {
+            return this.registerCustomVenue(
+              sess.venue || venueName,
+              sess.venueCoordinates.latitude,
+              sess.venueCoordinates.longitude,
+              sess.venueCoordinates.radiusMeters || 50.0,
+              sess.venueCoordinates.building || 'Lecturer Verified Campus Geolocation'
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 5. Automatic parsing of inline coordinates in venue name (e.g. "Venue Name (6.5244, 3.3793)")
+    const coordMatch = normalized.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+    if (coordMatch) {
+      const parsedLat = parseFloat(coordMatch[1]);
+      const parsedLon = parseFloat(coordMatch[2]);
+      if (!isNaN(parsedLat) && !isNaN(parsedLon)) {
+        return this.registerCustomVenue(
+          venueName,
+          parsedLat,
+          parsedLon,
+          50.0,
+          'Lecturer Verified Campus Geolocation'
+        );
+      }
+    }
+
+    // 6. Generic campus terms (e.g. "the class", "classroom", "class", "hall", "lecture hall", "hall ...")
     if (['the class', 'class', 'classroom', 'lecture hall', 'main hall', 'hall'].includes(normalized) || normalized.startsWith('hall')) {
       return this.venues[0]; // ICT Hall A
     }
@@ -232,8 +271,21 @@ class SmartBioGeofence {
   /**
    * Verify whether the student is physically within the active lecture venue
    */
-  async verifyProximity(venueName = null, modeOverride = null) {
-    const venue = this.getVenueByName(venueName);
+  async verifyProximity(venueName = null, modeOverride = null, venueCoordinates = null) {
+    let venue = null;
+
+    // 1. If explicit venueCoordinates were passed from session payload, register/update them as an authoritative venue
+    if (venueCoordinates && venueCoordinates.latitude != null && venueCoordinates.longitude != null) {
+      venue = this.registerCustomVenue(
+        venueName || venueCoordinates.name || 'Lecturer Verified Location',
+        venueCoordinates.latitude,
+        venueCoordinates.longitude,
+        venueCoordinates.radiusMeters || 50.0,
+        venueCoordinates.building || 'Lecturer Verified Campus Geolocation'
+      );
+    } else {
+      venue = this.getVenueByName(venueName);
+    }
 
     // STRICT VENUE ENFORCEMENT: If the venue is not in the authoritative registry, REJECT.
     // This prevents silent fallback to a wrong geofence when a lecturer sets a custom venue name.

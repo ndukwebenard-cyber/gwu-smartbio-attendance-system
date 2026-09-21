@@ -737,6 +737,14 @@ class SmartBioTestSuite {
       hostelResult.success === false && hostelResult.status === 'OUT_OF_BOUNDS_LOCATION_BREACH' && hostelResult.distanceMeters > 1000,
       `Calculated distance: ${hostelResult.distanceMeters}m (Allowed: ${hostelResult.allowedRadiusMeters}m)`
     );
+
+    // 3. Lecturer Current GPS Registered Geolocation Test
+    const lecturerCustom = window.smartBioGeofence.registerCustomVenue('Lecturer Verified Location', 6.5244, 3.3792, 50.0, 'Lecturer Verified Campus Geolocation');
+    this.assert('Lecturer GPS is marked as a registered campus geolocation', !!lecturerCustom && lecturerCustom.isCustom === true);
+    const dynamicResolved = window.smartBioGeofence.getVenueByName('Dynamic Venue');
+    this.assert('Dynamic/Lecturer alias resolves to registered geolocation', !!dynamicResolved && dynamicResolved.latitude === 6.5244);
+    const lecturerInClass = await window.smartBioGeofence.verifyProximity('Dynamic Venue', 'SIM_IN_CLASS', { latitude: 6.5244, longitude: 3.3792, radiusMeters: 50.0 });
+    this.assert('Attendance verification succeeds against Lecturer Verified Location', lecturerInClass.success === true && lecturerInClass.status === 'WITHIN_CLASSROOM');
   }
 
   // 14. Anti-Proxy Biometric Cross-Validation

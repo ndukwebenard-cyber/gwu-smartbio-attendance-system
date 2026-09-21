@@ -89,6 +89,16 @@ class SmartBioApp {
       if (savedSess) {
         const parsed = JSON.parse(savedSess);
         if (parsed && parsed.status === 'ACTIVE') {
+          // If session contains dynamic/lecturer coordinates, register as campus geolocation
+          if (parsed.venueCoordinates && window.smartBioGeofence) {
+            window.smartBioGeofence.registerCustomVenue(
+              parsed.venue,
+              parsed.venueCoordinates.latitude,
+              parsed.venueCoordinates.longitude,
+              parsed.venueCoordinates.radiusMeters || 50.0,
+              parsed.venueCoordinates.building || 'Lecturer Verified Campus Geolocation'
+            );
+          }
           // Auto-heal legacy, null, or invalid session venues to registered campus venue
           if (window.smartBioGeofence) {
             const vObj = window.smartBioGeofence.getVenueByName(parsed.venue);
@@ -1095,6 +1105,16 @@ class SmartBioApp {
         (detail && (detail.status === 'CONCLUDED' || detail.status === 'ENDED' || detail.isExplicitEnd));
 
       if (sessionData && sessionData.status === 'ACTIVE') {
+        // If live session carries dynamic/lecturer coordinates, register as campus geolocation
+        if (sessionData.venueCoordinates && window.smartBioGeofence) {
+          window.smartBioGeofence.registerCustomVenue(
+            sessionData.venue,
+            sessionData.venueCoordinates.latitude,
+            sessionData.venueCoordinates.longitude,
+            sessionData.venueCoordinates.radiusMeters || 50.0,
+            sessionData.venueCoordinates.building || 'Lecturer Verified Campus Geolocation'
+          );
+        }
         this.activeLectureSession = sessionData;
         if (window.smartBioData) {
           window.smartBioData.addLectureSession(sessionData);
@@ -1233,16 +1253,24 @@ class SmartBioApp {
       (pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        const defaultName = `Dynamic Venue (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
-        const venueName = (prompt('Enter venue name for this dynamic geofence (e.g. Hall 4, Outdoor Seminar Pavilion):', defaultName) || defaultName).trim();
+        const defaultName = 'Lecturer Verified Location';
+        const venueName = (prompt('Enter name for this registered geolocation (e.g. Hall 4, Seminar Room, Lecturer Location):', defaultName) || defaultName).trim();
 
         const venue = window.smartBioGeofence.registerCustomVenue(
           venueName,
           lat,
           lon,
           50.0,
-          'Dynamic Lecturer Device GPS'
+          'Lecturer Verified Campus Geolocation'
         );
+
+        this.activeDynamicVenueCoords = {
+          name: venue.name,
+          latitude: lat,
+          longitude: lon,
+          radiusMeters: 50.0,
+          building: 'Lecturer Verified Campus Geolocation'
+        };
 
         const venueSelect = document.getElementById('lectureVenueInput');
         if (venueSelect) {
@@ -1250,14 +1278,14 @@ class SmartBioApp {
           if (!opt) {
             opt = document.createElement('option');
             opt.value = venue.name;
-            opt.innerText = `📍 ${venue.name} (Dynamic GPS — 50m Geofence)`;
+            opt.innerText = `📍 ${venue.name} (Registered Geolocation — 50m Geofence)`;
             venueSelect.appendChild(opt);
           }
           venueSelect.value = venue.name;
         }
 
         window.smartBioAudio.playSuccessChime();
-        this.showToast(`✅ Venue "${venue.name}" locked to GPS coordinates [${lat.toFixed(5)}, ${lon.toFixed(5)}] with 50m radius!`, 'success');
+        this.showToast(`✅ Lecturer location registered as campus geolocation: "${venue.name}" [${lat.toFixed(5)}, ${lon.toFixed(5)}] (50m geofence).`, 'success');
       },
       (err) => {
         window.smartBioAudio.playErrorBuzz();
@@ -1321,8 +1349,32 @@ class SmartBioApp {
     const oldVenue = this.activeLectureSession.venue;
     this.activeLectureSession.venue = newVenueName;
 
+    // Resolve coordinates for new venue
+    let vObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(newVenueName) : null;
+    if (!vObj && this.activeDynamicVenueCoords && this.activeDynamicVenueCoords.name.toLowerCase() === newVenueName.toLowerCase()) {
+      vObj = window.smartBioGeofence.registerCustomVenue(
+        this.activeDynamicVenueCoords.name,
+        this.activeDynamicVenueCoords.latitude,
+        this.activeDynamicVenueCoords.longitude,
+        this.activeDynamicVenueCoords.radiusMeters || 50.0,
+        this.activeDynamicVenueCoords.building || 'Lecturer Verified Campus Geolocation'
+      );
+    }
+    if (vObj) {
+      this.activeLectureSession.venueCoordinates = {
+        name: vObj.name,
+        latitude: vObj.latitude,
+        longitude: vObj.longitude,
+        radiusMeters: vObj.radiusMeters,
+        building: vObj.building
+      };
+    }
+
     // Update in data store
-    window.smartBioData.updateLectureSession(this.activeLectureSession.id, { venue: newVenueName });
+    window.smartBioData.updateLectureSession(this.activeLectureSession.id, { 
+      venue: newVenueName,
+      venueCoordinates: this.activeLectureSession.venueCoordinates || null
+    });
 
     // Update localStorage
     try {
@@ -1337,7 +1389,6 @@ class SmartBioApp {
     const venueEl = document.getElementById('activeSessionVenue');
     if (venueEl) venueEl.innerText = newVenueName;
     const venueLabel = document.getElementById('geofenceVenueLabel');
-    const vObj = window.smartBioGeofence.getVenueByName(newVenueName);
     if (venueLabel && vObj) venueLabel.innerText = `${vObj.name} (${vObj.radiusMeters}m Radius)`;
 
     window.smartBioAudio.playSuccessChime();
@@ -1360,9 +1411,22 @@ class SmartBioApp {
     const venue = venueInput && venueInput.value.trim() ? venueInput.value.trim() : 'ICT Hall A';
 
     // VENUE VALIDATION: The venue must exist in the authoritative geofence registry.
-    // This prevents sessions from being created with unrecognized venues that would
-    // cause all attendance scans to fail or silently bypass the geofence.
-    const resolvedVenue = window.smartBioGeofence.getVenueByName(venue);
+    // If not found, check if lecturer previously captured dynamic GPS coordinates
+    let resolvedVenue = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(venue) : null;
+    if (!resolvedVenue && this.activeDynamicVenueCoords && 
+        (this.activeDynamicVenueCoords.name.toLowerCase() === venue.toLowerCase() || 
+         venue.toLowerCase().includes('lecturer') || 
+         venue.toLowerCase().includes('gps') || 
+         venue.toLowerCase().includes('dynamic'))) {
+      resolvedVenue = window.smartBioGeofence.registerCustomVenue(
+        this.activeDynamicVenueCoords.name,
+        this.activeDynamicVenueCoords.latitude,
+        this.activeDynamicVenueCoords.longitude,
+        this.activeDynamicVenueCoords.radiusMeters || 50.0,
+        this.activeDynamicVenueCoords.building || 'Lecturer Verified Campus Geolocation'
+      );
+    }
+
     if (!resolvedVenue) {
       window.smartBioAudio.playErrorBuzz();
       const knownVenues = window.smartBioGeofence.getVenues().map(v => v.name).join(', ');
@@ -1380,6 +1444,15 @@ class SmartBioApp {
 
     const currentUser = this.authenticatedUser;
     const startTimeMs = Date.now();
+
+    const venueCoords = resolvedVenue ? {
+      name: resolvedVenue.name,
+      latitude: resolvedVenue.latitude,
+      longitude: resolvedVenue.longitude,
+      radiusMeters: resolvedVenue.radiusMeters,
+      building: resolvedVenue.building
+    } : (this.activeDynamicVenueCoords || null);
+
     this.activeLectureSession = {
       id: startTimeMs,
       startTimeMs: startTimeMs,
@@ -1387,7 +1460,8 @@ class SmartBioApp {
       lecturerId: this.currentUserId || currentUser.id,
       lecturerName: currentUser.fullName,
       topic,
-      venue,
+      venue: resolvedVenue.name,
+      venueCoordinates: venueCoords,
       startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: 'ACTIVE'
     };
@@ -2819,11 +2893,21 @@ class SmartBioApp {
 
         // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
         // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
-        const venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
+        const venueCoords = activeSess ? activeSess.venueCoordinates : null;
+        let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
+        if (!venueObj && venueCoords && window.smartBioGeofence) {
+          venueObj = window.smartBioGeofence.registerCustomVenue(
+            activeSess.venue,
+            venueCoords.latitude,
+            venueCoords.longitude,
+            venueCoords.radiusMeters || 50.0,
+            venueCoords.building || 'Lecturer Verified Campus Geolocation'
+          );
+        }
         const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
         const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP');
         const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
-        const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
+        const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode, venueCoords);
         if (!proximity.success) {
           if (proximity.status === 'GPS_ACQUISITION_FAILED') {
             window.smartBioAudio.playErrorBuzz();
@@ -2903,8 +2987,18 @@ class SmartBioApp {
     if (this.activeLectureSession && this.activeLectureSession.status === 'ACTIVE') {
       const course = (window.smartBioData.load().courses || []).find(c => c.id === this.activeLectureSession.courseId) || { code: 'Course' };
       const venue = this.activeLectureSession.venue || '(No Venue Set)';
-      const venueObj = window.smartBioGeofence.getVenueByName(venue);
-      const radiusLabel = venueObj ? `${venueObj.radiusMeters}m Radius` : 'UNKNOWN';
+      const venueCoords = this.activeLectureSession.venueCoordinates;
+      let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(venue) : null;
+      if (!venueObj && venueCoords && window.smartBioGeofence) {
+        venueObj = window.smartBioGeofence.registerCustomVenue(
+          venue,
+          venueCoords.latitude,
+          venueCoords.longitude,
+          venueCoords.radiusMeters || 50.0,
+          venueCoords.building || 'Lecturer Verified Campus Geolocation'
+        );
+      }
+      const radiusLabel = venueObj ? `${venueObj.radiusMeters}m Radius` : '50m Radius';
       this.updateScannerHUD('ACTIVE SESSION DETECTED', `Streaming attendance for ${course.code} (${venue}) — Optical Sensor Ready`);
       if (venueLabel) venueLabel.innerText = `${venue} (${radiusLabel})`;
     } else {
@@ -2986,11 +3080,21 @@ class SmartBioApp {
 
     // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
     // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
-    const venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
+    const venueCoords = activeSess ? activeSess.venueCoordinates : null;
+    let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
+    if (!venueObj && venueCoords && window.smartBioGeofence) {
+      venueObj = window.smartBioGeofence.registerCustomVenue(
+        activeSess.venue,
+        venueCoords.latitude,
+        venueCoords.longitude,
+        venueCoords.radiusMeters || 50.0,
+        venueCoords.building || 'Lecturer Verified Campus Geolocation'
+      );
+    }
     const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
     const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && student && Number(student.id) === Number(this.authenticatedUser.id);
     const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
-    const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode);
+    const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode, venueCoords);
     if (!proximity.success) {
       if (proximity.status === 'GPS_ACQUISITION_FAILED') {
         window.smartBioAudio.playErrorBuzz();
