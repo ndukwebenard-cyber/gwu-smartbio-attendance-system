@@ -1205,6 +1205,8 @@ class SmartBioApp {
   bindLecturerEvents() {
     const btnStartSession = document.getElementById('btnStartLectureSession');
     const btnEndSession = document.getElementById('btnEndLectureSession');
+    const btnUseGpsVenue = document.getElementById('btnUseCurrentLocationVenue');
+    const btnRelocate = document.getElementById('btnRelocateActiveSession');
 
     if (btnStartSession) {
       btnStartSession.addEventListener('click', () => this.startActiveLectureSession());
@@ -1212,6 +1214,134 @@ class SmartBioApp {
     if (btnEndSession) {
       btnEndSession.addEventListener('click', () => this.endActiveLectureSession());
     }
+    if (btnUseGpsVenue) {
+      btnUseGpsVenue.addEventListener('click', () => this.captureLecturerLocationAsVenue());
+    }
+    if (btnRelocate) {
+      btnRelocate.addEventListener('click', () => this.relocateActiveSessionVenue());
+    }
+  }
+
+  captureLecturerLocationAsVenue() {
+    if (!navigator.geolocation) {
+      this.showToast('Geolocation hardware is not supported by this browser.', 'error');
+      return;
+    }
+
+    this.showToast('🛰️ Acquiring precise GPS coordinates from lecturer device...', 'info');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const defaultName = `Dynamic Venue (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+        const venueName = (prompt('Enter venue name for this dynamic geofence (e.g. Hall 4, Outdoor Seminar Pavilion):', defaultName) || defaultName).trim();
+
+        const venue = window.smartBioGeofence.registerCustomVenue(
+          venueName,
+          lat,
+          lon,
+          50.0,
+          'Dynamic Lecturer Device GPS'
+        );
+
+        const venueSelect = document.getElementById('lectureVenueInput');
+        if (venueSelect) {
+          let opt = Array.from(venueSelect.options).find(o => o.value.toLowerCase() === venueName.toLowerCase());
+          if (!opt) {
+            opt = document.createElement('option');
+            opt.value = venue.name;
+            opt.innerText = `📍 ${venue.name} (Dynamic GPS — 50m Geofence)`;
+            venueSelect.appendChild(opt);
+          }
+          venueSelect.value = venue.name;
+        }
+
+        window.smartBioAudio.playSuccessChime();
+        this.showToast(`✅ Venue "${venue.name}" locked to GPS coordinates [${lat.toFixed(5)}, ${lon.toFixed(5)}] with 50m radius!`, 'success');
+      },
+      (err) => {
+        window.smartBioAudio.playErrorBuzz();
+        this.showToast(`⛔ Failed to capture GPS: ${err.message}. Please allow location access.`, 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  }
+
+  relocateActiveSessionVenue() {
+    if (!this.activeLectureSession || this.activeLectureSession.status !== 'ACTIVE') {
+      this.showToast('No active lecture session to relocate.', 'warning');
+      return;
+    }
+
+    const venues = window.smartBioGeofence.getVenues();
+    const venueListStr = venues.map((v, i) => `${i + 1}. ${v.name} (${v.radiusMeters}m radius)`).join('\n');
+    const promptMsg = `Relocate active class from "${this.activeLectureSession.venue}".\n\nEnter new venue name, number (1-${venues.length}), or type "GPS" to lock current device location:\n\n${venueListStr}`;
+    const choice = prompt(promptMsg);
+    if (!choice || !choice.trim()) return;
+
+    const trimmed = choice.trim();
+
+    if (trimmed.toUpperCase() === 'GPS') {
+      this.showToast('🛰️ Acquiring new GPS coordinates for session relocation...', 'info');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const vName = (prompt('Enter venue name for this relocation:', `Relocated Hall (${lat.toFixed(4)}, ${lon.toFixed(4)})`) || 'Relocated Venue').trim();
+          window.smartBioGeofence.registerCustomVenue(vName, lat, lon, 50.0, 'Relocated Faculty Venue');
+          this.applySessionRelocation(vName);
+        },
+        (err) => {
+          window.smartBioAudio.playErrorBuzz();
+          this.showToast(`⛔ Could not acquire GPS: ${err.message}`, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+      return;
+    }
+
+    const numChoice = parseInt(trimmed, 10);
+    let targetVenueName = trimmed;
+    if (!isNaN(numChoice) && numChoice >= 1 && numChoice <= venues.length) {
+      targetVenueName = venues[numChoice - 1].name;
+    }
+
+    const resolved = window.smartBioGeofence.getVenueByName(targetVenueName);
+    if (!resolved) {
+      window.smartBioAudio.playErrorBuzz();
+      this.showToast(`⛔ Venue "${targetVenueName}" is not recognized. Please pick a registered hall or type "GPS".`, 'error');
+      return;
+    }
+
+    this.applySessionRelocation(resolved.name);
+  }
+
+  applySessionRelocation(newVenueName) {
+    if (!this.activeLectureSession) return;
+    const oldVenue = this.activeLectureSession.venue;
+    this.activeLectureSession.venue = newVenueName;
+
+    // Update in data store
+    window.smartBioData.updateLectureSession(this.activeLectureSession.id, { venue: newVenueName });
+
+    // Update localStorage
+    try {
+      localStorage.setItem('smartbio_active_session', JSON.stringify(this.activeLectureSession));
+    } catch (_) {}
+
+    // Broadcast update across portals
+    window.smartBioCloud.broadcastActiveSession(this.activeLectureSession);
+    this.broadcastSync('SESSION_UPDATE', this.activeLectureSession);
+
+    // Update UI elements
+    const venueEl = document.getElementById('activeSessionVenue');
+    if (venueEl) venueEl.innerText = newVenueName;
+    const venueLabel = document.getElementById('geofenceVenueLabel');
+    const vObj = window.smartBioGeofence.getVenueByName(newVenueName);
+    if (venueLabel && vObj) venueLabel.innerText = `${vObj.name} (${vObj.radiusMeters}m Radius)`;
+
+    window.smartBioAudio.playSuccessChime();
+    this.showToast(`📍 Session relocated from "${oldVenue}" to "${newVenueName}"! All subsequent attendance scans will check presence in the new venue.`, 'success');
   }
 
   startActiveLectureSession() {

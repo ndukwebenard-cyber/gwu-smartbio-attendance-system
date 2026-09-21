@@ -57,8 +57,49 @@ class SmartBioGeofence {
       }
     ];
 
+    // Restore any custom session venues registered dynamically by lecturers
+    try {
+      const savedCustom = localStorage.getItem('smartbio_custom_venues');
+      if (savedCustom) {
+        const parsed = JSON.parse(savedCustom);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(cv => {
+            if (cv && cv.name && cv.latitude && cv.longitude) {
+              cv.isCustom = true;
+              this.venues.push(cv);
+            }
+          });
+        }
+      }
+    } catch (_) {}
+
     // Current simulation mode for defense/testing: 'SIM_IN_CLASS' | 'SIM_HOSTEL_REMOTE' | 'DEVICE_GPS'
     this.currentMode = 'SIM_IN_CLASS';
+  }
+
+  registerCustomVenue(name, latitude, longitude, radiusMeters = 50.0, building = 'Custom Faculty Venue') {
+    if (!name || latitude == null || longitude == null) return null;
+    const cleanName = name.trim();
+    const existingIndex = this.venues.findIndex(v => v.name.toLowerCase() === cleanName.toLowerCase());
+    const newVenue = {
+      id: existingIndex >= 0 ? this.venues[existingIndex].id : (this.venues.length + 1),
+      name: cleanName,
+      building: building,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      radiusMeters: Number(radiusMeters) || 50.0,
+      isCustom: true
+    };
+    if (existingIndex >= 0) {
+      this.venues[existingIndex] = newVenue;
+    } else {
+      this.venues.push(newVenue);
+    }
+    try {
+      const customList = this.venues.filter(v => v.isCustom);
+      localStorage.setItem('smartbio_custom_venues', JSON.stringify(customList));
+    } catch (_) {}
+    return newVenue;
   }
 
   setSimulationMode(mode) {

@@ -103,8 +103,11 @@
           <div class="radar-dot"></div>
           <div>
             <h3 style="font-size: 1.1rem; font-weight: 800;" id="activeSessionTitle">Active Lecture Session</h3>
-            <p style="font-size: 0.82rem; color: var(--text-muted);">
-              Venue: <strong id="activeSessionVenue">--</strong> • Course: <strong id="activeSessionCourseCode" class="text-primary font-mono">--</strong> • Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span>
+            <p style="font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span>Venue: <strong id="activeSessionVenue">--</strong></span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnRelocateActiveSession" style="padding: 2px 8px; font-size: 0.72rem; cursor: pointer;">📍 Relocate Venue</button>
+              <span>• Course: <strong id="activeSessionCourseCode" class="text-primary font-mono">--</strong></span>
+              <span>• Status: <span class="text-success font-mono font-bold">STREAMING ATTENDANCE</span></span>
             </p>
           </div>
         </div>
@@ -129,7 +132,10 @@
             <input type="text" class="form-control" id="lectureTopicInput" placeholder="e.g. Advanced Software Architecture" autocapitalize="words" data-autocase="title">
           </div>
           <div>
-            <label class="form-label">Lecture Hall / Venue</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <label class="form-label" style="margin-bottom: 0;">Lecture Hall / Venue</label>
+              <button type="button" id="btnUseCurrentLocationVenue" style="background: none; border: none; color: var(--primary); font-size: 0.75rem; font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0;">📍 Use Current GPS</button>
+            </div>
             <select class="form-control" id="lectureVenueInput">
               <option value="ICT Hall A">ICT Hall A (CS &amp; Software Complex — 50m Geofence)</option>
               <option value="ICT Hall B">ICT Hall B (CS &amp; Software Complex — 50m Geofence)</option>
