@@ -2892,7 +2892,9 @@ class SmartBioApp {
         }
 
         // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
-        // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
+        // Uses the shared Kiosk Terminal geofence toggle (Inside Hall / Hostel Remote / Live Device GPS)
+        // for every check-in method, so the fingerprint flow can be demoed and tested the same way
+        // as the optical scanner. Select "Live Device GPS" on the toggle to use real hardware GPS.
         const venueCoords = activeSess ? activeSess.venueCoordinates : null;
         let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
         if (!venueObj && venueCoords && window.smartBioGeofence) {
@@ -2905,9 +2907,7 @@ class SmartBioApp {
           );
         }
         const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
-        const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP');
-        const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
-        const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode, venueCoords);
+        const proximity = await window.smartBioGeofence.verifyProximity(venueName, null, venueCoords);
         if (!proximity.success) {
           if (proximity.status === 'GPS_ACQUISITION_FAILED') {
             window.smartBioAudio.playErrorBuzz();
@@ -3079,7 +3079,9 @@ class SmartBioApp {
     const currentCourseId = activeSess.courseId;
 
     // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
-    // ENFORCE REAL GPS for student self-attendance: simulation modes are only for lecturer/admin demo testing.
+    // Uses the shared Kiosk Terminal geofence toggle (Inside Hall / Hostel Remote / Live Device GPS)
+    // for every check-in method, so the fingerprint flow can be demoed and tested the same way
+    // as the optical scanner. Select "Live Device GPS" on the toggle to use real hardware GPS.
     const venueCoords = activeSess ? activeSess.venueCoordinates : null;
     let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
     if (!venueObj && venueCoords && window.smartBioGeofence) {
@@ -3092,9 +3094,7 @@ class SmartBioApp {
       );
     }
     const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
-    const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && student && Number(student.id) === Number(this.authenticatedUser.id);
-    const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null; // null = use current simulation mode for demos
-    const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode, venueCoords);
+    const proximity = await window.smartBioGeofence.verifyProximity(venueName, null, venueCoords);
     if (!proximity.success) {
       if (proximity.status === 'GPS_ACQUISITION_FAILED') {
         window.smartBioAudio.playErrorBuzz();
