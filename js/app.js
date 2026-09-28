@@ -1395,7 +1395,7 @@ class SmartBioApp {
     this.showToast(`📍 Session relocated from "${oldVenue}" to "${newVenueName}"! All subsequent attendance scans will check presence in the new venue.`, 'success');
   }
 
-  startActiveLectureSession() {
+  async startActiveLectureSession() {
     if (!this.authenticatedUser || (this.authenticatedUser.role !== 'LECTURER' && this.authenticatedUser.role !== 'ADMIN')) {
       window.smartBioAudio.playErrorBuzz();
       this.showToast('⛔ Access Denied: Only assigned faculty members or administrators can initiate live lecture sessions.', 'error');
@@ -1445,13 +1445,64 @@ class SmartBioApp {
     const currentUser = this.authenticatedUser;
     const startTimeMs = Date.now();
 
-    const venueCoords = resolvedVenue ? {
+    let venueCoords = resolvedVenue ? {
       name: resolvedVenue.name,
       latitude: resolvedVenue.latitude,
       longitude: resolvedVenue.longitude,
       radiusMeters: resolvedVenue.radiusMeters,
       building: resolvedVenue.building
     } : (this.activeDynamicVenueCoords || null);
+
+    // Bind the session to the lecturer's real, live location so the geofence
+    // check reflects actual physical proximity to the lecturer instead of the
+    // registry's fixed reference coordinates for the named venue. Silent —
+    // falls back to the registered venue coordinates if GPS is unavailable,
+    // denied, or doesn't resolve quickly.
+    if (navigator.geolocation) {
+      try {
+        const livePos = await new Promise((resolve, reject) => {
+          let settled = false;
+          const watchdog = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('Location capture timed out'));
+          }, 6000);
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(watchdog);
+              resolve(pos);
+            },
+            (err) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(watchdog);
+              reject(err);
+            },
+            { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+          );
+        });
+        venueCoords = {
+          name: venueCoords ? venueCoords.name : resolvedVenue.name,
+          latitude: livePos.coords.latitude,
+          longitude: livePos.coords.longitude,
+          radiusMeters: venueCoords ? venueCoords.radiusMeters : 50.0,
+          building: venueCoords ? venueCoords.building : 'Lecturer Verified Campus Geolocation'
+        };
+        if (window.smartBioGeofence) {
+          window.smartBioGeofence.registerCustomVenue(
+            venueCoords.name,
+            venueCoords.latitude,
+            venueCoords.longitude,
+            venueCoords.radiusMeters,
+            venueCoords.building
+          );
+        }
+      } catch (_) {
+        // GPS unavailable/denied/timed out — proceed with the venue's registered coordinates.
+      }
+    }
 
     this.activeLectureSession = {
       id: startTimeMs,
@@ -2892,9 +2943,10 @@ class SmartBioApp {
         }
 
         // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
-        // Uses the shared Kiosk Terminal geofence toggle (Inside Hall / Hostel Remote / Live Device GPS)
-        // for every check-in method, so the fingerprint flow can be demoed and tested the same way
-        // as the optical scanner. Select "Live Device GPS" on the toggle to use real hardware GPS.
+        // A real student/class-rep checking in on their OWN account is always verified against
+        // live hardware GPS — the Kiosk Terminal simulation toggle (Inside Hall / Hostel Remote)
+        // cannot be used to bypass this. The toggle only governs scans a lecturer/admin runs
+        // themselves from the Kiosk for demo/testing purposes.
         const venueCoords = activeSess ? activeSess.venueCoordinates : null;
         let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
         if (!venueObj && venueCoords && window.smartBioGeofence) {
@@ -2907,7 +2959,9 @@ class SmartBioApp {
           );
         }
         const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
-        const proximity = await window.smartBioGeofence.verifyProximity(venueName, null, venueCoords);
+        const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && Number(user.id) === Number(this.authenticatedUser.id);
+        const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null;
+        const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode, venueCoords);
         if (!proximity.success) {
           if (proximity.status === 'GPS_ACQUISITION_FAILED') {
             window.smartBioAudio.playErrorBuzz();
@@ -3079,9 +3133,10 @@ class SmartBioApp {
     const currentCourseId = activeSess.courseId;
 
     // GEOFENCE PROXIMITY VERIFICATION (NDPA 2023 Sec. 24 Compliance)
-    // Uses the shared Kiosk Terminal geofence toggle (Inside Hall / Hostel Remote / Live Device GPS)
-    // for every check-in method, so the fingerprint flow can be demoed and tested the same way
-    // as the optical scanner. Select "Live Device GPS" on the toggle to use real hardware GPS.
+    // A real student/class-rep checking in on their OWN account is always verified against
+    // live hardware GPS — the Kiosk Terminal simulation toggle (Inside Hall / Hostel Remote)
+    // cannot be used to bypass this. The toggle only governs scans a lecturer/admin runs
+    // themselves from the Kiosk for demo/testing purposes.
     const venueCoords = activeSess ? activeSess.venueCoordinates : null;
     let venueObj = window.smartBioGeofence ? window.smartBioGeofence.getVenueByName(activeSess.venue) : null;
     if (!venueObj && venueCoords && window.smartBioGeofence) {
@@ -3094,7 +3149,9 @@ class SmartBioApp {
       );
     }
     const venueName = venueObj ? venueObj.name : (activeSess.venue || 'ICT Hall A');
-    const proximity = await window.smartBioGeofence.verifyProximity(venueName, null, venueCoords);
+    const isStudentSelfCheckIn = this.authenticatedUser && (this.authenticatedUser.role === 'STUDENT' || this.authenticatedUser.role === 'CLASS_REP') && student && Number(student.id) === Number(this.authenticatedUser.id);
+    const geoMode = isStudentSelfCheckIn ? 'DEVICE_GPS' : null;
+    const proximity = await window.smartBioGeofence.verifyProximity(venueName, geoMode, venueCoords);
     if (!proximity.success) {
       if (proximity.status === 'GPS_ACQUISITION_FAILED') {
         window.smartBioAudio.playErrorBuzz();
