@@ -251,8 +251,23 @@ class SmartBioGeofence {
     }
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+
+      // Application-level watchdog: the browser's own `timeout` option only bounds
+      // the wait AFTER the permission prompt is answered — if it's left unanswered
+      // (or the browser silently stalls), neither callback ever fires. This
+      // guarantees the promise always settles so the caller can show feedback.
+      const watchdog = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('Location request timed out. Please ensure location permissions are granted and try again.'));
+      }, 10000);
+
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(watchdog);
           resolve({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
@@ -261,6 +276,9 @@ class SmartBioGeofence {
           });
         },
         (err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(watchdog);
           reject(new Error(`GPS Sensor error: ${err.message}`));
         },
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
